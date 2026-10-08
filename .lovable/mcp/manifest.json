@@ -1,0 +1,186 @@
+{
+  "version": 1,
+  "sdk_version": "0.24.0",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://obddafotljpsgsxlrmfm.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "union-project-mcp",
+      "version": "0.1.0",
+      "title": "Union Project"
+    },
+    "tools": [
+      {
+        "name": "list_courses",
+        "title": "List courses",
+        "description": "List courses available on Union Project, optionally filtered by faculty or a search term.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "search": {
+              "type": "string",
+              "description": "Filter by course name or code."
+            },
+            "faculty": {
+              "type": "string",
+              "description": "Filter by faculty."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Max rows (default 25)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "search_resources",
+        "title": "Search resources",
+        "description": "Search study resources (notes, exams, videos) in the Union Project archive, optionally scoped to a course.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "search": {
+              "type": "string",
+              "description": "Text to match against resource titles."
+            },
+            "courseId": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Restrict results to this course id."
+            },
+            "type": {
+              "type": "string",
+              "description": "Resource type filter, e.g. 'notes', 'exam', 'video'."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Max rows (default 25)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_my_profile",
+        "title": "Get my profile",
+        "description": "Get the signed-in user's Union Project profile (university, faculty, academic year).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_my_events",
+        "title": "List my agenda events",
+        "description": "List the signed-in user's calendar events, optionally within a date range.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "from": {
+              "type": "string",
+              "description": "ISO datetime lower bound for event start."
+            },
+            "to": {
+              "type": "string",
+              "description": "ISO datetime upper bound for event start."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "description": "Max rows (default 50)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "create_event",
+        "title": "Create agenda event",
+        "description": "Create a calendar event in the signed-in user's Union Project agenda.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Event title."
+            },
+            "start_time": {
+              "type": "string",
+              "description": "ISO datetime when the event starts."
+            },
+            "end_time": {
+              "type": "string",
+              "description": "ISO datetime when the event ends."
+            },
+            "description": {
+              "type": "string",
+              "description": "Optional details."
+            },
+            "location": {
+              "type": "string",
+              "description": "Optional location."
+            },
+            "color": {
+              "type": "string",
+              "description": "Optional color token."
+            }
+          },
+          "required": [
+            "title",
+            "start_time",
+            "end_time"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
