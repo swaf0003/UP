@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { ArrowLeft, Loader2, MailCheck } from 'lucide-react';
 
 interface ForgotPasswordFormProps {
@@ -26,11 +26,7 @@ export default function ForgotPasswordForm({ onBack, defaultEmail = '' }: Forgot
     setLoading(false);
 
     if (error) {
-      toast({
-        title: 'Erreur',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast.error(error.message);
       return;
     }
     setSent(true);

@@ -23,14 +23,9 @@ import { useAdmin } from "@/hooks/useAdmin";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
-const universityNames: Record<string, string> = {
-  ulb: "ULB", uclouvain: "UCLouvain", uliege: "ULiège", umons: "UMons",
-  unamur: "UNamur", uantwerpen: "UAntwerpen", ugent: "UGent", uhasselt: "UHasselt", vub: "VUB",
-};
+import { UNIVERSITY_NAMES as universityNames, FACULTIES as faculties, ACADEMIC_YEARS as years } from "@/shared/constants/universities";
 
 const universities = Object.entries(universityNames).map(([id, name]) => ({ id, name }));
-const faculties = ["Médecine", "Polytechnique"];
-const years = ["BA1", "BA2", "BA3", "MA1", "MA2"];
 
 interface UserRow {
   user_id: string;
@@ -204,32 +199,62 @@ const AdminPage = () => {
   const handleSetRole = async () => {
     if (!roleDialog) return;
     setSavingRole(true);
+    let mutationError = null;
     if (selectedRole === "none") {
-      await supabase.from("user_roles").delete().eq("user_id", roleDialog.user_id);
+      const { error } = await supabase.from("user_roles").delete().eq("user_id", roleDialog.user_id);
+      mutationError = error;
     } else {
-      const { data: existing } = await supabase.from("user_roles").select("id").eq("user_id", roleDialog.user_id);
-      if (existing && existing.length > 0) {
-        await supabase.from("user_roles").update({ role: selectedRole as any }).eq("user_id", roleDialog.user_id);
+      const { data: existing, error: fetchErr } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", roleDialog.user_id);
+      if (fetchErr) {
+        mutationError = fetchErr;
+      } else if (existing && existing.length > 0) {
+        const { error } = await supabase
+          .from("user_roles")
+          .update({ role: selectedRole as "admin" | "moderator" | "user" })
+          .eq("user_id", roleDialog.user_id);
+        mutationError = error;
       } else {
-        await supabase.from("user_roles").insert({ user_id: roleDialog.user_id, role: selectedRole as any });
+        const { error } = await supabase
+          .from("user_roles")
+          .insert({ user_id: roleDialog.user_id, role: selectedRole as "admin" | "moderator" | "user" });
+        mutationError = error;
       }
+    }
+    setSavingRole(false);
+    if (mutationError) {
+      toast.error(mutationError.message || "Erreur lors de la mise à jour du rôle");
+      return;
     }
     toast.success("Rôle mis à jour !");
     setRoleDialog(null);
-    setSavingRole(false);
     fetchAll();
   };
 
   const handleDeleteCourse = async () => {
     if (!deleteDialog) return;
     setDeleting(true);
-    await supabase.from("hub_messages").delete().eq("course_id", deleteDialog.id);
-    await supabase.from("hub_members").delete().eq("course_id", deleteDialog.id);
-    await supabase.from("resources").delete().eq("course_id", deleteDialog.id);
-    await supabase.from("courses").delete().eq("id", deleteDialog.id);
+    const results = await Promise.all([
+      supabase.from("hub_messages").delete().eq("course_id", deleteDialog.id),
+      supabase.from("hub_members").delete().eq("course_id", deleteDialog.id),
+      supabase.from("resources").delete().eq("course_id", deleteDialog.id),
+    ]);
+    const childErr = results.find((r) => r.error)?.error;
+    if (childErr) {
+      toast.error(childErr.message || "Erreur lors de la suppression des données du salon");
+      setDeleting(false);
+      return;
+    }
+    const { error } = await supabase.from("courses").delete().eq("id", deleteDialog.id);
+    setDeleting(false);
+    if (error) {
+      toast.error(error.message || "Erreur lors de la suppression du salon");
+      return;
+    }
     toast.success("Salon supprimé !");
     setDeleteDialog(null);
-    setDeleting(false);
     fetchAll();
   };
 

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Video, FileText, ClipboardList, Loader2, Upload, File, X, Link2 } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { isSafeHttpUrl } from "@/lib/urlValidation";
 
@@ -76,12 +76,12 @@ export const AdminResourceDialog = ({ open, onOpenChange, universityId, faculty,
     if (!file) return;
 
     if (file.size > MAX_FILE_SIZE) {
-      toast({ title: "Fichier trop volumineux", description: "Maximum 20 Mo", variant: "destructive" });
+      toast.error("Fichier trop volumineux (maximum 20 Mo)");
       return;
     }
 
     if (!ALLOWED_TYPES.includes(file.type)) {
-      toast({ title: "Type non supporté", description: "Formats acceptés : PDF, DOC, DOCX, PPT, PPTX, PNG, JPG", variant: "destructive" });
+      toast.error("Format non supporté (PDF, DOC, DOCX, PPT, PPTX, PNG, JPG)");
       return;
     }
 
@@ -106,9 +106,9 @@ export const AdminResourceDialog = ({ open, onOpenChange, universityId, faculty,
     });
     setLoading(false);
     if (error) {
-      toast({ title: "Erreur", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     } else {
-      toast({ title: "Cours ajouté ✓" });
+      toast.success("Cours ajouté ✓");
       queryClient.invalidateQueries({ queryKey: ["courses"] });
       resetForm();
       onOpenChange(false);
@@ -121,7 +121,7 @@ export const AdminResourceDialog = ({ open, onOpenChange, universityId, faculty,
     const effectiveInputMode = resourceType === "video" ? "url" : inputMode;
     if (effectiveInputMode === "url" && !url.trim()) return;
     if (effectiveInputMode === "url" && !isSafeHttpUrl(url.trim())) {
-      toast({ title: "URL invalide", description: "L'URL doit commencer par https:// ou http://", variant: "destructive" });
+      toast.error("L'URL doit commencer par https:// ou http://");
       return;
     }
     if (effectiveInputMode === "file" && !selectedFile) return;
@@ -142,7 +142,7 @@ export const AdminResourceDialog = ({ open, onOpenChange, universityId, faculty,
         .upload(path, selectedFile, { contentType: selectedFile.type });
 
       if (uploadError) {
-        toast({ title: "Erreur d'upload", description: uploadError.message, variant: "destructive" });
+        toast.error(uploadError.message);
         setLoading(false);
         setUploadProgress(0);
         return;
@@ -170,9 +170,9 @@ export const AdminResourceDialog = ({ open, onOpenChange, universityId, faculty,
     setUploadProgress(0);
 
     if (error) {
-      toast({ title: "Erreur", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     } else {
-      toast({ title: "Ressource ajoutée ✓" });
+      toast.success("Ressource ajoutée ✓");
       queryClient.invalidateQueries({ queryKey: ["courses"] });
       resetForm();
       onOpenChange(false);

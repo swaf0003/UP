@@ -27,19 +27,11 @@ import { z } from "zod";
 import { useChatTheme, appAccents } from "@/contexts/ChatThemeContext";
 import { cn } from "@/lib/utils";
 import MFAEnroll from "@/components/auth/MFAEnroll";
+import { UNIVERSITIES, FACULTIES, ACADEMIC_YEARS } from "@/shared/constants/universities";
 
-const universities = [
-  { id: "ulb", name: "ULB" }, { id: "uclouvain", name: "UCLouvain" }, { id: "uliege", name: "ULiège" },
-  { id: "umons", name: "UMons" }, { id: "unamur", name: "UNamur" }, { id: "uantwerpen", name: "UAntwerpen" },
-  { id: "ugent", name: "UGent" }, { id: "uhasselt", name: "UHasselt" }, { id: "vub", name: "VUB" },
-];
-
-const faculties = [
-  "Médecine", "Polytechnique", "Droit", "Sciences", "Économie",
-  "Philosophie & Lettres", "Psychologie", "Sciences sociales", "Informatique",
-];
-
-const years = ["BAC 1", "BAC 2", "BAC 3", "MA 1", "MA 2"];
+const universities = UNIVERSITIES;
+const faculties = FACULTIES;
+const years = ACADEMIC_YEARS;
 
 const profileSchema = z.object({
   display_name: z.string().trim().min(2, "Minimum 2 caractères").max(50, "Maximum 50 caractères"),

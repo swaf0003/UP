@@ -15,10 +15,7 @@ import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import { format, formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 
-const universityNames: Record<string, string> = {
-  ulb: "ULB", uclouvain: "UCLouvain", uliege: "ULiège", umons: "UMons",
-  unamur: "UNamur", uantwerpen: "UAntwerpen", ugent: "UGent", uhasselt: "UHasselt", vub: "VUB",
-};
+import { UNIVERSITY_NAMES as universityNames } from "@/shared/constants/universities";
 
 const getGreeting = () => {
   const h = new Date().getHours();

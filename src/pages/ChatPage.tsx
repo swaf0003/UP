@@ -50,10 +50,9 @@ interface HubMessage {
   sender_avatar: string | null;
 }
 
-const universityNames: Record<string, string> = {
-  ulb: "ULB", uclouvain: "UCLouvain", uliege: "ULiège", umons: "UMons",
-  unamur: "UNamur", uantwerpen: "UAntwerpen", ugent: "UGent", uhasselt: "UHasselt", vub: "VUB",
-};
+import { JoinHubDialog } from "@/features/hubs/JoinHubDialog";
+import { CreateSalonDialog } from "@/features/hubs/CreateSalonDialog";
+import { UNIVERSITY_NAMES as universityNames } from "@/shared/constants/universities";
 
 const universities = [
   { id: "ulb", name: "ULB" }, { id: "uclouvain", name: "UCLouvain" }, { id: "uliege", name: "ULiège" },
@@ -363,123 +362,21 @@ const ChatPage = () => {
     }));
   }, [filteredHubs]);
 
-  // ── Join Dialog ──
-  const JoinDialog = () => (
-    <Dialog open={!!joinDialogHub} onOpenChange={() => setJoinDialogHub(null)}>
-      <DialogContent className="rounded-2xl">
-        <DialogHeader>
-          <DialogTitle className="text-center text-lg font-heading">
-            Rejoindre le salon
-          </DialogTitle>
-        </DialogHeader>
-        {joinDialogHub && (
-          <div className="text-center space-y-4 py-4">
-            <div className={cn(
-              "w-16 h-16 rounded-2xl mx-auto flex items-center justify-center",
-              (joinDialogHub.faculty.toLowerCase().includes("méd") || joinDialogHub.faculty.toLowerCase().includes("med"))
-                ? "bg-destructive/10" : "gradient-accent"
-            )}>
-              {(joinDialogHub.faculty.toLowerCase().includes("méd") || joinDialogHub.faculty.toLowerCase().includes("med"))
-                ? <Stethoscope className="w-7 h-7 text-destructive" />
-                : <Wrench className="w-7 h-7 text-accent-foreground" />}
-            </div>
-            <div>
-              <p className="font-heading font-bold text-foreground text-lg">{joinDialogHub.short_name || joinDialogHub.name}</p>
-              <p className="text-sm text-muted-foreground">
-                {universityNames[joinDialogHub.university_id]} · {joinDialogHub.faculty} · {joinDialogHub.year}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">{joinDialogHub.memberCount} membre(s)</p>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Veux-tu rejoindre <span className="font-medium text-foreground">{joinDialogHub.short_name || joinDialogHub.name}</span> ?
-              Tu pourras discuter avec tous les membres du salon.
-            </p>
-          </div>
-        )}
-        <DialogFooter className="flex gap-2 sm:gap-2">
-          <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setJoinDialogHub(null)}>
-            Annuler
-          </Button>
-          <Button
-            className="flex-1 rounded-xl gradient-primary text-primary-foreground"
-            onClick={() => joinDialogHub && handleJoin(joinDialogHub)}
-            disabled={joining}
-          >
-            {joining ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <LogIn className="w-4 h-4 mr-2" />}
-            Rejoindre
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-
-  // ── Create Salon Dialog (Admin) ──
-  const CreateSalonDialog = () => (
-    <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-      <DialogContent className="rounded-2xl">
-        <DialogHeader>
-          <DialogTitle className="font-heading">Créer un salon</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Nom du cours</Label>
-            <Input value={createForm.name} onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))} placeholder="Ex: Analyse Mathématique I" className="rounded-xl" />
-          </div>
-          <div className="space-y-2">
-            <Label>Nom court</Label>
-            <Input value={createForm.short_name} onChange={(e) => setCreateForm((p) => ({ ...p, short_name: e.target.value }))} placeholder="Ex: Analyse I" className="rounded-xl" />
-          </div>
-          <div className="space-y-2">
-            <Label>Code</Label>
-            <Input value={createForm.code} onChange={(e) => setCreateForm((p) => ({ ...p, code: e.target.value }))} placeholder="Ex: MATH-H1001" className="rounded-xl" />
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-2">
-              <Label>Université</Label>
-              <Select value={createForm.university_id} onValueChange={(v) => setCreateForm((p) => ({ ...p, university_id: v }))}>
-                <SelectTrigger className="rounded-xl"><SelectValue placeholder="Uni" /></SelectTrigger>
-                <SelectContent>
-                  {universities.map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Faculté</Label>
-              <Select value={createForm.faculty} onValueChange={(v) => setCreateForm((p) => ({ ...p, faculty: v }))}>
-                <SelectTrigger className="rounded-xl"><SelectValue placeholder="Fac" /></SelectTrigger>
-                <SelectContent>
-                  {faculties.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Année</Label>
-              <Select value={createForm.year} onValueChange={(v) => setCreateForm((p) => ({ ...p, year: v }))}>
-                <SelectTrigger className="rounded-xl"><SelectValue placeholder="Année" /></SelectTrigger>
-                <SelectContent>
-                  {years.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" className="rounded-xl" onClick={() => setShowCreateDialog(false)}>Annuler</Button>
-          <Button className="rounded-xl gradient-primary text-primary-foreground" onClick={handleCreateSalon} disabled={creating}>
-            {creating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-            Créer
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-
   // ── Hub list ──
   if (!selectedCourse) {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-        <JoinDialog />
-        <CreateSalonDialog />
+        <JoinHubDialog
+          course={joinDialogHub}
+          joining={joining}
+          onClose={() => setJoinDialogHub(null)}
+          onConfirm={handleJoin}
+        />
+        <CreateSalonDialog
+          open={showCreateDialog}
+          onOpenChange={setShowCreateDialog}
+          onCreated={fetchHubs}
+        />
 
         <div className="flex items-center justify-between">
           <div>
