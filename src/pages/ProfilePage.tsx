@@ -7,14 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useAdmin } from '@/hooks/useAdmin';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { fetchUnionScore, fetchLeaderboard, getRank, RANKS, type LeaderboardEntry } from '@/hooks/useUnionScore';
-
-const universityNames: Record<string, string> = {
-  ulb: 'ULB', uclouvain: 'UCLouvain', uliege: 'ULiège', umons: 'UMons',
-  unamur: 'UNamur', uantwerpen: 'UAntwerpen', ugent: 'UGent', uhasselt: 'UHasselt', vub: 'VUB',
-};
+import { validateAvatarFile } from '@/lib/urlValidation';
+import { fetchUnionScore, getRank } from '@/hooks/useUnionScore';
+import { UNIVERSITY_NAMES } from '@/shared/constants/universities';
 
 const BADGES = [
   { id: 'first_star', name: 'Première Étoile', icon: '⭐', desc: 'Recevoir ta première étoile', threshold: 1 },
@@ -43,7 +40,6 @@ const ProfilePage = () => {
   const [unionScore, setUnionScore] = useState(0);
   const [starsReceived, setStarsReceived] = useState(0);
   const [contactAdds, setContactAdds] = useState(0);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -58,15 +54,12 @@ const ProfilePage = () => {
       setUnionScore(scoreData.score);
       setStarsReceived(scoreData.starsReceived);
       setContactAdds(scoreData.contactAdds);
-
-      const lb = await fetchLeaderboard(5);
-      setLeaderboard(lb);
     };
     fetchData();
   }, [user]);
 
   const displayName = profile?.display_name || user?.user_metadata?.display_name || 'Étudiant';
-  const university = universityNames[profile?.university || user?.user_metadata?.university || ''] || '';
+  const university = UNIVERSITY_NAMES[profile?.university || user?.user_metadata?.university || ''] || '';
   const faculty = profile?.faculty || user?.user_metadata?.faculty || '';
   const year = profile?.academic_year || user?.user_metadata?.academic_year || '';
   const initials = displayName.slice(0, 2).toUpperCase();
@@ -80,35 +73,34 @@ const ProfilePage = () => {
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-    if (!file.type.startsWith('image/')) {
-      toast({ title: 'Format invalide', description: 'Choisis une image (JPG, PNG...)', variant: 'destructive' });
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: 'Fichier trop lourd', description: 'Maximum 5 Mo', variant: 'destructive' });
+    const validation = validateAvatarFile(file);
+    if (!validation.valid) {
+      toast.error(validation.error);
       return;
     }
     setUploading(true);
-    const ext = file.name.split('.').pop();
-    const filePath = `${user.id}/avatar.${ext}`;
+    const filePath = `${user.id}/avatar.${validation.ext}`;
     if (profile?.avatar_url) {
       await supabase.storage.from('avatars').remove([profile.avatar_url]);
     }
-    const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, { upsert: true });
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, {
+      upsert: true,
+      contentType: file.type,
+    });
     if (uploadError) {
-      toast({ title: 'Erreur', description: "Impossible d'uploader la photo.", variant: 'destructive' });
+      toast.error("Impossible d'uploader la photo.");
       setUploading(false);
       return;
     }
     await supabase.from('profiles').update({ avatar_url: filePath }).eq('user_id', user.id);
     await refreshProfile();
-    toast({ title: '✅ Photo mise à jour !' });
+    toast.success('Photo mise à jour !');
     setUploading(false);
   };
 
   return (
     <motion.div className="space-y-6" variants={stagger} initial="initial" animate="animate">
-      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+      <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleAvatarUpload} />
 
       {/* Profile Card */}
       <motion.div variants={fadeUp} className="glass rounded-3xl p-6 text-center relative overflow-hidden">

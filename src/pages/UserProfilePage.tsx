@@ -11,10 +11,7 @@ import { fetchUnionScore, getRank } from "@/hooks/useUnionScore";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
-const universityNames: Record<string, string> = {
-  ulb: "ULB", uclouvain: "UCLouvain", uliege: "ULiège", umons: "UMons",
-  unamur: "UNamur", uantwerpen: "UAntwerpen", ugent: "UGent", uhasselt: "UHasselt", vub: "VUB",
-};
+import { UNIVERSITY_NAMES as universityNames } from "@/shared/constants/universities";
 
 const fadeUp = {
   initial: { opacity: 0, y: 16 },

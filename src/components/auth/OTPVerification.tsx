@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { Loader2, Mail, ArrowLeft, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -66,28 +66,21 @@ export default function OTPVerification({ email, onVerified, onBack }: OTPVerifi
     });
 
     if (error) {
-      toast({
-        title: 'Code invalide',
-        description: 'Vérifie le code reçu par email et réessaie.',
-        variant: 'destructive',
-      });
+      toast.error('Code invalide — vérifie le code reçu par email et réessaie.');
       setOtp(Array(6).fill(''));
       inputRefs.current[0]?.focus();
       setLoading(false);
       return;
     }
 
-    // Code verified — update profile
+    // Code verified — email_verified is synced server-side via auth.users trigger
     if (data.user) {
       const meta = data.user.user_metadata;
       await supabase.from('profiles').update({
         display_name: meta?.display_name || '',
-        gender: meta?.gender || '',
-        date_of_birth: meta?.date_of_birth || null,
         university: meta?.university || '',
         faculty: meta?.faculty || '',
         academic_year: meta?.academic_year || '',
-        email_verified: true,
       }).eq('user_id', data.user.id);
     }
 
@@ -102,9 +95,9 @@ export default function OTPVerification({ email, onVerified, onBack }: OTPVerifi
       email,
     });
     if (error) {
-      toast({ title: 'Erreur', description: "Impossible de renvoyer le code.", variant: 'destructive' });
+      toast.error("Impossible de renvoyer le code.");
     } else {
-      toast({ title: '📧 Code renvoyé', description: 'Vérifie ta boîte mail (et tes spams).' });
+      toast.success('Code renvoyé ! Vérifie ta boîte mail (et tes spams).');
     }
     setResending(false);
   };

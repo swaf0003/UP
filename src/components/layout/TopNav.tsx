@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell, Search, X, Command } from "lucide-react";
 import { openCommandPalette } from "@/components/CommandPalette";
 import { Input } from "@/components/ui/input";
 import { useAuthContext } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { useUnreadMessages } from "@/shared/hooks/useUnreadMessages";
 import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
 import { getPageLabel } from "@/lib/navLabels";
@@ -14,7 +14,7 @@ const TopNav = () => {
   const { profile, user } = useAuthContext();
   const navigate = useNavigate();
   const location = useLocation();
-  const [unreadCount, setUnreadCount] = useState(0);
+  const unreadCount = useUnreadMessages();
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -23,26 +23,6 @@ const TopNav = () => {
   const avatarUrl = profile?.avatar_url
     ? `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/avatars/${profile.avatar_url}`
     : null;
-
-  useEffect(() => {
-    if (!user) return;
-    const fetchUnread = async () => {
-      const { count } = await supabase
-        .from("messages")
-        .select("*", { count: "exact", head: true })
-        .eq("receiver_id", user.id)
-        .eq("read", false);
-      setUnreadCount(count || 0);
-    };
-    fetchUnread();
-
-    const channel = supabase
-      .channel("topnav-unread")
-      .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `receiver_id=eq.${user.id}` }, () => fetchUnread())
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [user]);
 
   const handleSearchSubmit = () => {
     if (searchQuery.trim()) {

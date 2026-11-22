@@ -11,10 +11,7 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
-const universityNames: Record<string, string> = {
-  ulb: "ULB", uclouvain: "UCLouvain", uliege: "ULiège", umons: "UMons",
-  unamur: "UNamur", uantwerpen: "UAntwerpen", ugent: "UGent", uhasselt: "UHasselt", vub: "VUB",
-};
+import { UNIVERSITY_NAMES as universityNames } from "@/shared/constants/universities";
 
 interface ProfileRow {
   id: string;

@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { Shield, Loader2 } from 'lucide-react';
 import logo from '@/assets/logo.png';
 
@@ -21,7 +21,7 @@ export default function MFAChallenge({ onVerified, onCancel }: MFAChallengeProps
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.mfa.listFactors();
-      const verified = data?.totp?.find((f: any) => f.status === 'verified');
+      const verified = data?.totp?.find((f) => f.status === 'verified');
       if (verified) {
         setFactorId(verified.id);
       }
@@ -34,7 +34,7 @@ export default function MFAChallenge({ onVerified, onCancel }: MFAChallengeProps
 
     const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({ factorId });
     if (challengeError) {
-      toast({ title: 'Erreur', description: challengeError.message, variant: 'destructive' });
+      toast.error(challengeError.message);
       setVerifying(false);
       return;
     }
@@ -46,7 +46,7 @@ export default function MFAChallenge({ onVerified, onCancel }: MFAChallengeProps
     });
 
     if (verifyError) {
-      toast({ title: 'Code invalide', description: 'Vérifie le code dans ton app d\'authentification.', variant: 'destructive' });
+      toast.error("Code invalide — vérifie ton app d'authentification.");
       setCode('');
       setVerifying(false);
       return;

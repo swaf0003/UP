@@ -15,10 +15,7 @@ import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import { format, formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 
-const universityNames: Record<string, string> = {
-  ulb: "ULB", uclouvain: "UCLouvain", uliege: "ULiège", umons: "UMons",
-  unamur: "UNamur", uantwerpen: "UAntwerpen", ugent: "UGent", uhasselt: "UHasselt", vub: "VUB",
-};
+import { UNIVERSITY_NAMES as universityNames } from "@/shared/constants/universities";
 
 const getGreeting = () => {
   const h = new Date().getHours();
@@ -436,48 +433,56 @@ const HomePage = () => {
         </motion.section>
       )}
 
-      {/* ── Coming Soon ── */}
-      <motion.section variants={fadeUp} className="grid grid-cols-2 gap-3">
-        <div className="glass rounded-xl p-3.5 flex flex-col items-center text-center gap-2">
-          <div className="w-10 h-10 rounded-xl bg-warning/15 flex items-center justify-center">
-            <BookOpen className="w-5 h-5 text-warning" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-foreground">Quiz</p>
-            <p className="text-[0.55rem] text-muted-foreground leading-tight">Teste tes connaissances</p>
-          </div>
-          <span className="text-[0.5rem] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">Bientôt</span>
-        </div>
-        <div className="glass rounded-xl p-3.5 flex flex-col items-center text-center gap-2">
-          <div className="w-10 h-10 rounded-xl bg-success/15 flex items-center justify-center">
-            <Trophy className="w-5 h-5 text-success" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-foreground">Classement</p>
-            <p className="text-[0.55rem] text-muted-foreground leading-tight">Compare avec les autres</p>
-          </div>
-          <span className="text-[0.5rem] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">Bientôt</span>
-        </div>
-        <div className="glass rounded-xl p-3.5 flex flex-col items-center text-center gap-2">
-          <div className="w-10 h-10 rounded-xl bg-info/15 flex items-center justify-center">
-            <Users className="w-5 h-5 text-info" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-foreground">Mentorat</p>
-            <p className="text-[0.55rem] text-muted-foreground leading-tight">Trouve un mentor</p>
-          </div>
-          <span className="text-[0.5rem] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">Bientôt</span>
-        </div>
-        <div className="glass rounded-xl p-3.5 flex flex-col items-center text-center gap-2">
-          <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
-            <Compass className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-foreground">Carnet</p>
-            <p className="text-[0.55rem] text-muted-foreground leading-tight">Planifie tes révisions</p>
-          </div>
-          <span className="text-[0.5rem] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">Bientôt</span>
-        </div>
+      {/* ── Quick Access Modules ── */}
+      <motion.section variants={fadeUp} className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <button
+            onClick={() => navigate("/tutoring")}
+            className="rounded-xl border border-border bg-card p-3.5 flex flex-col items-center text-center gap-2 hover:border-primary/50 transition-colors"
+          >
+            <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+              <Users className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-foreground">Tutorat</p>
+              <p className="text-[0.65rem] text-muted-foreground leading-tight">Trouve un tuteur vérifié</p>
+            </div>
+          </button>
+          <button
+            onClick={() => navigate("/resources")}
+            className="rounded-xl border border-border bg-card p-3.5 flex flex-col items-center text-center gap-2 hover:border-primary/50 transition-colors"
+          >
+            <div className="w-9 h-9 rounded-lg bg-warning/10 border border-warning/20 flex items-center justify-center">
+              <BookOpen className="w-4 h-4 text-warning" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-foreground">L'Archive</p>
+              <p className="text-[0.65rem] text-muted-foreground leading-tight">Synthèses & vidéos</p>
+            </div>
+          </button>
+          <button
+            onClick={() => navigate("/explore")}
+            className="rounded-xl border border-border bg-card p-3.5 flex flex-col items-center text-center gap-2 hover:border-primary/50 transition-colors"
+          >
+            <div className="w-9 h-9 rounded-lg bg-success/10 border border-success/20 flex items-center justify-center">
+              <Trophy className="w-4 h-4 text-success" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-foreground">Explorer</p>
+              <p className="text-[0.65rem] text-muted-foreground leading-tight">Étudiants & salons</p>
+            </div>
+          </button>
+          <button
+            onClick={() => navigate("/agenda")}
+            className="rounded-xl border border-border bg-card p-3.5 flex flex-col items-center text-center gap-2 hover:border-primary/50 transition-colors"
+          >
+            <div className="w-9 h-9 rounded-lg bg-info/10 border border-info/20 flex items-center justify-center">
+              <Compass className="w-4 h-4 text-info" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-foreground">Agenda ICS</p>
+              <p className="text-[0.65rem] text-muted-foreground leading-tight">Synchronise tes cours</p>
+            </div>
+          </button>
       </motion.section>
     </motion.div>
   );

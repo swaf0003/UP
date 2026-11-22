@@ -2,11 +2,26 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { isSafeOAuthRedirect } from "@/lib/urlValidation";
+
+interface OAuthAuthorizationDetails {
+  redirect_url?: string;
+  redirect_to?: string;
+  scope?: string;
+  scopes?: string[];
+  client?: { name?: string };
+}
+
+interface OAuthError {
+  message: string;
+}
+
+type OAuthResult = Promise<{ data: OAuthAuthorizationDetails | null; error: OAuthError | null }>;
 
 type OAuthApi = {
-  getAuthorizationDetails: (id: string) => Promise<{ data: any; error: any }>;
-  approveAuthorization: (id: string) => Promise<{ data: any; error: any }>;
-  denyAuthorization: (id: string) => Promise<{ data: any; error: any }>;
+  getAuthorizationDetails: (id: string) => OAuthResult;
+  approveAuthorization: (id: string) => OAuthResult;
+  denyAuthorization: (id: string) => OAuthResult;
 };
 
 const oauth = (supabase.auth as unknown as { oauth: OAuthApi }).oauth;
@@ -14,7 +29,7 @@ const oauth = (supabase.auth as unknown as { oauth: OAuthApi }).oauth;
 export default function OAuthConsent() {
   const [params] = useSearchParams();
   const authorizationId = params.get("authorization_id") ?? "";
-  const [details, setDetails] = useState<any>(null);
+  const [details, setDetails] = useState<OAuthAuthorizationDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -33,6 +48,10 @@ export default function OAuthConsent() {
       }
       const immediate = data?.redirect_url ?? data?.redirect_to;
       if (immediate && !data?.client) {
+        if (!isSafeOAuthRedirect(immediate)) {
+          setError("URL de redirection OAuth non autorisée.");
+          return;
+        }
         window.location.href = immediate;
         return;
       }
@@ -54,9 +73,9 @@ export default function OAuthConsent() {
       return;
     }
     const target = data?.redirect_url ?? data?.redirect_to;
-    if (!target) {
+    if (!target || !isSafeOAuthRedirect(target)) {
       setBusy(false);
-      setError("Aucune redirection renvoyée par le serveur d'autorisation.");
+      setError("Redirection OAuth invalide ou non autorisée.");
       return;
     }
     window.location.href = target;

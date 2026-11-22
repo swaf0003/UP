@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { Eye, EyeOff, ArrowLeft, Loader2 } from 'lucide-react';
 
 interface LoginFormProps {
@@ -31,13 +31,11 @@ export default function LoginForm({ onBack, onMFARequired, onForgotPassword }: L
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      toast({
-        title: 'Erreur de connexion',
-        description: error.message === 'Invalid login credentials'
+      toast.error(
+        error.message === 'Invalid login credentials'
           ? 'Email ou mot de passe incorrect.'
-          : error.message,
-        variant: 'destructive',
-      });
+          : error.message
+      );
     } else if (data?.session) {
       // Check if MFA is required
       const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();

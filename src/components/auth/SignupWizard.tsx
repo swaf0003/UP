@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
-import { isAcademicEmail } from '@/hooks/useAuth';
+import { isAcademicEmail } from '@/shared/lib/academicEmail';
+import { UNIVERSITIES, FACULTIES, ACADEMIC_YEARS } from '@/shared/constants/universities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import PasswordStrength from './PasswordStrength';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { ArrowLeft, ArrowRight, Loader2, Eye, EyeOff, User, Calendar, GraduationCap, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -16,20 +17,9 @@ interface SignupWizardProps {
   onOtpSent: (email: string) => void;
 }
 
-const universities = [
-  { id: 'ulb', name: 'ULB – Université Libre de Bruxelles' },
-  { id: 'uclouvain', name: 'UCLouvain' },
-  { id: 'uliege', name: 'ULiège – Université de Liège' },
-  { id: 'umons', name: 'UMons – Université de Mons' },
-  { id: 'unamur', name: 'UNamur – Université de Namur' },
-  { id: 'uantwerpen', name: 'UAntwerpen' },
-  { id: 'ugent', name: 'UGent – Universiteit Gent' },
-  { id: 'uhasselt', name: 'UHasselt' },
-  { id: 'vub', name: 'VUB – Vrije Universiteit Brussel' },
-];
-
-const faculties = ['Polytechnique', 'Médecine'];
-const years = ['BA1', 'BA2', 'BA3', 'MA1', 'MA2'];
+const universities = UNIVERSITIES;
+const faculties = FACULTIES;
+const years = ACADEMIC_YEARS;
 
 const STEP_COUNT = 4;
 
@@ -66,7 +56,6 @@ export default function SignupWizard({ onBack, onOtpSent }: SignupWizardProps) {
       if (step === 3) emailRef.current?.focus();
     }, 300);
     return () => clearTimeout(timer);
-    return () => clearTimeout(timer);
   }, [step]);
 
   const next = () => { setDir(1); setStep((s) => Math.min(s + 1, STEP_COUNT - 1)); };
@@ -76,24 +65,20 @@ export default function SignupWizard({ onBack, onOtpSent }: SignupWizardProps) {
     if (step === 0) return name.trim().length >= 2 && gender !== '';
     if (step === 1) return dobDay !== '' && dobMonth !== '' && dobYear !== '';
     if (step === 2) return university !== '' && faculty !== '' && year !== '';
-    if (step === 3) return email !== '' && password.length >= 6;
+    if (step === 3) return email !== '' && password.length >= 10;
     return false;
   };
 
   const handleSubmit = async () => {
     if (!isAcademicEmail(email)) {
-      toast({
-        title: '📧 Email non académique',
-        description: "Utilise ton email universitaire (.be) pour rejoindre l'Union. Les emails personnels (Gmail, Outlook...) ne sont pas acceptés.",
-        variant: 'destructive',
-      });
+      toast.error("Utilise ton email universitaire (.be) pour rejoindre l'Union. Les emails personnels ne sont pas acceptés.");
       return;
     }
 
     setLoading(true);
 
     // 1. Sign up with Supabase (auto-confirm OFF → confirmation email sent automatically)
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -109,26 +94,12 @@ export default function SignupWizard({ onBack, onOtpSent }: SignupWizardProps) {
     });
 
     if (error) {
-      toast({
-        title: 'Erreur',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast.error("Impossible de créer le compte. Vérifie tes informations et réessaie.");
       setLoading(false);
       return;
     }
 
-    if (data.user && !data.user.identities?.length) {
-      toast({
-        title: 'Compte existant',
-        description: 'Un compte existe déjà avec cet email. Essaie de te connecter.',
-        variant: 'destructive',
-      });
-      setLoading(false);
-      return;
-    }
-
-    // Supabase sends confirmation email automatically (auto-confirm is OFF)
+    // Avoid account enumeration: always proceed to verification step generically
     onOtpSent(email);
     setLoading(false);
   };
@@ -360,7 +331,7 @@ export default function SignupWizard({ onBack, onOtpSent }: SignupWizardProps) {
                 <div className="relative">
                   <Input
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Minimum 6 caractères"
+                    placeholder="Minimum 10 caractères"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="h-12 rounded-xl bg-muted/50 pr-12"

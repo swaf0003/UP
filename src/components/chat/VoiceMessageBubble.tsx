@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Play, Pause } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getSignedStorageUrl } from "@/lib/urlValidation";
 
 interface VoiceMessageBubbleProps {
   voiceUrl: string;
@@ -20,10 +21,6 @@ const VoiceMessageBubble = ({ voiceUrl, duration, isMine }: VoiceMessageBubblePr
     Array(20).fill(0).map(() => 0.15 + Math.random() * 0.85)
   );
 
-  const fullUrl = voiceUrl.startsWith("http")
-    ? voiceUrl
-    : `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/voice-messages/${voiceUrl}`;
-
   useEffect(() => {
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current);
@@ -34,20 +31,28 @@ const VoiceMessageBubble = ({ voiceUrl, duration, isMine }: VoiceMessageBubblePr
     };
   }, []);
 
-  const updateProgress = () => {
+  const lastTickRef = useRef<number>(0);
+
+  const updateProgress = (now: number) => {
     if (audioRef.current) {
-      const p = audioRef.current.currentTime / (audioRef.current.duration || duration || 1);
-      setProgress(p);
-      setCurrentTime(audioRef.current.currentTime);
+      // Throttle React state updates to ~10Hz instead of 60fps
+      if (now - lastTickRef.current >= 100) {
+        lastTickRef.current = now;
+        const p = audioRef.current.currentTime / (audioRef.current.duration || duration || 1);
+        setProgress(p);
+        setCurrentTime(audioRef.current.currentTime);
+      }
       if (!audioRef.current.paused) {
         animRef.current = requestAnimationFrame(updateProgress);
       }
     }
   };
 
-  const toggle = () => {
+  const toggle = async () => {
     if (!audioRef.current) {
-      const a = new Audio(fullUrl);
+      const signed = await getSignedStorageUrl("voice-messages", voiceUrl);
+      if (!signed) return;
+      const a = new Audio(signed);
       a.playbackRate = speed;
       a.onended = () => {
         setPlaying(false);
@@ -64,7 +69,7 @@ const VoiceMessageBubble = ({ voiceUrl, duration, isMine }: VoiceMessageBubblePr
       if (animRef.current) cancelAnimationFrame(animRef.current);
     } else {
       audioRef.current.playbackRate = speed;
-      audioRef.current.play();
+      await audioRef.current.play();
     }
     setPlaying(!playing);
   };

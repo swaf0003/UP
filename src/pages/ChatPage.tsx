@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Users, Hash, Stethoscope, Wrench, ArrowLeft, UserPlus, Heart, Loader2, Plus, LogIn, Crown, ChevronDown, GraduationCap, Building2, Star, Link2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -14,6 +15,7 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import { useAdmin } from "@/hooks/useAdmin";
 import { toast } from "sonner";
 import VoiceMessageBubble from "@/components/chat/VoiceMessageBubble";
+import VoiceRecorder from "@/components/VoiceRecorder";
 import { useChatTheme } from "@/contexts/ChatThemeContext";
 import DateSeparator from "@/components/chat/DateSeparator";
 import MerciButton from "@/components/MerciButton";
@@ -50,10 +52,10 @@ interface HubMessage {
   sender_avatar: string | null;
 }
 
-const universityNames: Record<string, string> = {
-  ulb: "ULB", uclouvain: "UCLouvain", uliege: "ULiège", umons: "UMons",
-  unamur: "UNamur", uantwerpen: "UAntwerpen", ugent: "UGent", uhasselt: "UHasselt", vub: "VUB",
-};
+import { JoinHubDialog } from "@/features/hubs/JoinHubDialog";
+import { CreateSalonDialog } from "@/features/hubs/CreateSalonDialog";
+import { UNIVERSITY_NAMES as universityNames } from "@/shared/constants/universities";
+import { useBatchThanks } from "@/shared/hooks/useBatchThanks";
 
 const universities = [
   { id: "ulb", name: "ULB" }, { id: "uclouvain", name: "UCLouvain" }, { id: "uliege", name: "ULiège" },
@@ -68,6 +70,8 @@ const ChatPage = () => {
   const { user, profile } = useAuthContext();
   const { isAdmin, isOwner } = useAdmin();
   const { accent } = useChatTheme();
+  const [searchParams] = useSearchParams();
+  const hubParam = searchParams.get("hub");
   const [selectedCourse, setSelectedCourse] = useState<CourseHub | null>(null);
   const [message, setMessage] = useState("");
   const [filter, setFilter] = useState<"all" | "medecine" | "polytech">("all");
@@ -155,28 +159,50 @@ const ChatPage = () => {
 
   useEffect(() => { fetchHubs(); }, [user]);
 
-  // Fetch messages for selected course + realtime
+  // Honor ?hub=<courseId> deep link from CommandPalette / Archive / Home
   useEffect(() => {
-    if (!selectedCourse) return;
+    if (!hubParam || hubs.length === 0 || selectedCourse) return;
+    const target = hubs.find((h) => h.id === hubParam);
+    if (target) {
+      if (target.isMember) setSelectedCourse(target);
+      else setJoinDialogHub(target);
+    }
+  }, [hubParam, hubs, selectedCourse]);
+
+  const profileCacheRef = useRef<Map<string, { display_name?: string; university?: string; faculty?: string; avatar_url?: string | null }>>(new Map());
+  const hubMessageIds = useMemo(() => hubMessages.map((m) => m.id), [hubMessages]);
+  const batchThanks = useBatchThanks(user?.id, hubMessageIds);
+
+  // Fetch messages for selected course + realtime (paginated 50 + profile cache + DELETE handler)
+  useEffect(() => {
+    const courseId = selectedCourse?.id;
+    if (!courseId) return;
 
     const fetchMessages = async () => {
-      const { data: messages } = await supabase
+      const { data: rawMessages } = await supabase
         .from("hub_messages")
         .select("*")
-        .eq("course_id", selectedCourse.id)
-        .order("created_at", { ascending: true });
+        .eq("course_id", courseId)
+        .order("created_at", { ascending: false })
+        .limit(50);
 
-      if (!messages) return;
+      if (!rawMessages) return;
+      const messages = [...rawMessages].reverse();
 
       const senderIds = [...new Set(messages.map((m) => m.sender_id))];
-      const { data: profiles } = senderIds.length > 0
-        ? await supabase.from("profiles").select("user_id, display_name, university, faculty, avatar_url").in("user_id", senderIds)
-        : { data: [] };
-
-      const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p] as [string, any]));
+      const missingIds = senderIds.filter((id) => !profileCacheRef.current.has(id));
+      if (missingIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, display_name, university, faculty, avatar_url")
+          .in("user_id", missingIds);
+        for (const p of profiles || []) {
+          profileCacheRef.current.set(p.user_id, p);
+        }
+      }
 
       setHubMessages(messages.map((m) => {
-        const p = profileMap.get(m.sender_id) as any;
+        const p = profileCacheRef.current.get(m.sender_id);
         return {
           id: m.id, content: m.content, message_type: m.message_type,
           voice_url: m.voice_url, voice_duration: m.voice_duration,
@@ -192,32 +218,55 @@ const ChatPage = () => {
     fetchMessages();
 
     const channel = supabase
-      .channel(`hub-${selectedCourse.id}`)
+      .channel(`hub-${courseId}`)
       .on("postgres_changes", {
         event: "INSERT", schema: "public", table: "hub_messages",
-        filter: `course_id=eq.${selectedCourse.id}`,
+        filter: `course_id=eq.${courseId}`,
       }, async (payload) => {
-        const msg = payload.new as any;
-        const { data: p } = await supabase
-          .from("profiles")
-          .select("user_id, display_name, university, faculty, avatar_url")
-          .eq("user_id", msg.sender_id)
-          .single();
+        const msg = payload.new as {
+          id: string; content: string; message_type: string;
+          voice_url: string | null; voice_duration: number | null;
+          created_at: string; sender_id: string;
+        };
+        let p = profileCacheRef.current.get(msg.sender_id);
+        if (!p) {
+          const { data } = await supabase
+            .from("profiles")
+            .select("user_id, display_name, university, faculty, avatar_url")
+            .eq("user_id", msg.sender_id)
+            .single();
+          if (data) {
+            profileCacheRef.current.set(msg.sender_id, data);
+            p = data;
+          }
+        }
 
-        setHubMessages((prev) => [...prev, {
-          id: msg.id, content: msg.content, message_type: msg.message_type,
-          voice_url: msg.voice_url, voice_duration: msg.voice_duration,
-          created_at: msg.created_at, sender_id: msg.sender_id,
-          sender_name: p?.display_name || "Anonyme",
-          sender_university: p?.university || "",
-          sender_faculty: p?.faculty || "",
-          sender_avatar: p?.avatar_url || null,
-        }]);
+        setHubMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, {
+            id: msg.id, content: msg.content, message_type: msg.message_type,
+            voice_url: msg.voice_url, voice_duration: msg.voice_duration,
+            created_at: msg.created_at, sender_id: msg.sender_id,
+            sender_name: p?.display_name || "Anonyme",
+            sender_university: p?.university || "",
+            sender_faculty: p?.faculty || "",
+            sender_avatar: p?.avatar_url || null,
+          }];
+        });
+      })
+      .on("postgres_changes", {
+        event: "DELETE", schema: "public", table: "hub_messages",
+        filter: `course_id=eq.${courseId}`,
+      }, (payload) => {
+        const oldId = (payload.old as { id?: string })?.id;
+        if (oldId) {
+          setHubMessages((prev) => prev.filter((m) => m.id !== oldId));
+        }
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [selectedCourse]);
+  }, [selectedCourse?.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -363,123 +412,21 @@ const ChatPage = () => {
     }));
   }, [filteredHubs]);
 
-  // ── Join Dialog ──
-  const JoinDialog = () => (
-    <Dialog open={!!joinDialogHub} onOpenChange={() => setJoinDialogHub(null)}>
-      <DialogContent className="rounded-2xl">
-        <DialogHeader>
-          <DialogTitle className="text-center text-lg font-heading">
-            Rejoindre le salon
-          </DialogTitle>
-        </DialogHeader>
-        {joinDialogHub && (
-          <div className="text-center space-y-4 py-4">
-            <div className={cn(
-              "w-16 h-16 rounded-2xl mx-auto flex items-center justify-center",
-              (joinDialogHub.faculty.toLowerCase().includes("méd") || joinDialogHub.faculty.toLowerCase().includes("med"))
-                ? "bg-destructive/10" : "gradient-accent"
-            )}>
-              {(joinDialogHub.faculty.toLowerCase().includes("méd") || joinDialogHub.faculty.toLowerCase().includes("med"))
-                ? <Stethoscope className="w-7 h-7 text-destructive" />
-                : <Wrench className="w-7 h-7 text-accent-foreground" />}
-            </div>
-            <div>
-              <p className="font-heading font-bold text-foreground text-lg">{joinDialogHub.short_name || joinDialogHub.name}</p>
-              <p className="text-sm text-muted-foreground">
-                {universityNames[joinDialogHub.university_id]} · {joinDialogHub.faculty} · {joinDialogHub.year}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">{joinDialogHub.memberCount} membre(s)</p>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Veux-tu rejoindre <span className="font-medium text-foreground">{joinDialogHub.short_name || joinDialogHub.name}</span> ?
-              Tu pourras discuter avec tous les membres du salon.
-            </p>
-          </div>
-        )}
-        <DialogFooter className="flex gap-2 sm:gap-2">
-          <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setJoinDialogHub(null)}>
-            Annuler
-          </Button>
-          <Button
-            className="flex-1 rounded-xl gradient-primary text-primary-foreground"
-            onClick={() => joinDialogHub && handleJoin(joinDialogHub)}
-            disabled={joining}
-          >
-            {joining ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <LogIn className="w-4 h-4 mr-2" />}
-            Rejoindre
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-
-  // ── Create Salon Dialog (Admin) ──
-  const CreateSalonDialog = () => (
-    <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-      <DialogContent className="rounded-2xl">
-        <DialogHeader>
-          <DialogTitle className="font-heading">Créer un salon</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Nom du cours</Label>
-            <Input value={createForm.name} onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))} placeholder="Ex: Analyse Mathématique I" className="rounded-xl" />
-          </div>
-          <div className="space-y-2">
-            <Label>Nom court</Label>
-            <Input value={createForm.short_name} onChange={(e) => setCreateForm((p) => ({ ...p, short_name: e.target.value }))} placeholder="Ex: Analyse I" className="rounded-xl" />
-          </div>
-          <div className="space-y-2">
-            <Label>Code</Label>
-            <Input value={createForm.code} onChange={(e) => setCreateForm((p) => ({ ...p, code: e.target.value }))} placeholder="Ex: MATH-H1001" className="rounded-xl" />
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-2">
-              <Label>Université</Label>
-              <Select value={createForm.university_id} onValueChange={(v) => setCreateForm((p) => ({ ...p, university_id: v }))}>
-                <SelectTrigger className="rounded-xl"><SelectValue placeholder="Uni" /></SelectTrigger>
-                <SelectContent>
-                  {universities.map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Faculté</Label>
-              <Select value={createForm.faculty} onValueChange={(v) => setCreateForm((p) => ({ ...p, faculty: v }))}>
-                <SelectTrigger className="rounded-xl"><SelectValue placeholder="Fac" /></SelectTrigger>
-                <SelectContent>
-                  {faculties.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Année</Label>
-              <Select value={createForm.year} onValueChange={(v) => setCreateForm((p) => ({ ...p, year: v }))}>
-                <SelectTrigger className="rounded-xl"><SelectValue placeholder="Année" /></SelectTrigger>
-                <SelectContent>
-                  {years.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" className="rounded-xl" onClick={() => setShowCreateDialog(false)}>Annuler</Button>
-          <Button className="rounded-xl gradient-primary text-primary-foreground" onClick={handleCreateSalon} disabled={creating}>
-            {creating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-            Créer
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-
   // ── Hub list ──
   if (!selectedCourse) {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-        <JoinDialog />
-        <CreateSalonDialog />
+        <JoinHubDialog
+          course={joinDialogHub}
+          joining={joining}
+          onClose={() => setJoinDialogHub(null)}
+          onConfirm={handleJoin}
+        />
+        <CreateSalonDialog
+          open={showCreateDialog}
+          onOpenChange={setShowCreateDialog}
+          onCreated={fetchHubs}
+        />
 
         <div className="flex items-center justify-between">
           <div>
@@ -830,7 +777,14 @@ const ChatPage = () => {
                         {formatTime(msg.created_at)}
                       </p>
                       {!isMine && !consecutive && (
-                        <MerciButton messageId={msg.id} senderId={msg.sender_id} source="hub" />
+                        <MerciButton
+                          messageId={msg.id}
+                          receiverId={msg.sender_id}
+                          totalStars={batchThanks.countsByMessage[msg.id] ?? 0}
+                          isGiven={batchThanks.givenByMe.has(msg.id)}
+                          starsLeftToday={batchThanks.starsLeftToday}
+                          onStarGiven={batchThanks.markStarGiven}
+                        />
                       )}
                     </div>
                   </div>
@@ -862,7 +816,8 @@ const ChatPage = () => {
           >
             <Link2 className="w-5 h-5" />
           </Button>
-          <div className="flex-1 flex items-center gap-1.5 bg-card border border-border/60 rounded-2xl px-3 py-1.5">
+          <div className="flex-1 flex items-center gap-1.5 bg-card border border-border rounded-xl px-3 py-1.5">
+            <VoiceRecorder compact onSend={handleVoiceSend} />
             <Input
               value={message}
               onChange={(e) => setMessage(e.target.value)}

@@ -7,7 +7,7 @@ import OTPVerification from '@/components/auth/OTPVerification';
 import WelcomeAnimation from '@/components/auth/WelcomeAnimation';
 import MFAChallenge from '@/components/auth/MFAChallenge';
 import ForgotPasswordForm from '@/components/auth/ForgotPasswordForm';
-import { Users, BookOpen, GraduationCap } from 'lucide-react';
+import { Users, BookOpen, GraduationCap, ShieldCheck } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -21,106 +21,83 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden bg-background">
-      {/* Background orbs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-primary/10 blur-3xl animate-float" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-info/10 blur-3xl animate-float" style={{ animationDelay: '3s' }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/5 blur-3xl" />
-      </div>
+      {/* Subtle centered radial glow */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(600px circle at 50% 42%, hsl(var(--primary) / 0.09), transparent 70%)",
+        }}
+      />
 
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center py-8 px-4">
         <AnimatePresence mode="wait">
           {view === 'landing' && (
             <motion.div
               key="landing"
-              initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -30 }}
-              transition={{ duration: 0.4 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.14 }}
               className="w-full max-w-sm mx-auto text-center"
             >
               {/* Logo */}
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.2 }}
-                className="w-24 h-24 mx-auto mb-6"
-              >
-                <img src={logo} alt="Union Project" className="w-full h-full object-contain" />
-              </motion.div>
+              <div className="w-16 h-16 mx-auto mb-5 rounded-2xl border border-border bg-card p-2.5 flex items-center justify-center shadow-sm">
+                <img src={logo} alt="Union Project" className="w-full h-full object-contain rounded-lg" />
+              </div>
 
-              <motion.h1
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="text-4xl font-bold font-heading mb-3"
-              >
-                <span className="gradient-text">Union</span> Project
-              </motion.h1>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-card text-[0.68rem] font-mono text-muted-foreground mb-4">
+                <ShieldCheck className="w-3.5 h-3.5 text-success" />
+                Réseau vérifié · Universités belges (.be)
+              </div>
 
-              <motion.p
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="text-muted-foreground mb-10 text-base leading-relaxed"
-              >
-                La communauté étudiante belge qui révolutionne l'apprentissage universitaire.
-              </motion.p>
+              <h1 className="text-3xl font-bold font-heading tracking-tight text-foreground mb-2.5">
+                Union Project
+              </h1>
 
-              {/* Features */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-                className="grid grid-cols-3 gap-3 mb-10"
-              >
+              <p className="text-muted-foreground mb-8 text-sm leading-relaxed">
+                L'espace de travail des étudiants belges : hubs de cours, synthèses vérifiées et tutorat entre pairs.
+              </p>
+
+              {/* 3 Core Pillars */}
+              <div className="grid grid-cols-3 gap-2.5 mb-8">
                 {[
-                  { icon: BookOpen, label: 'Ressources' },
-                  { icon: Users, label: 'Communauté' },
-                  { icon: GraduationCap, label: 'Parcours' },
+                  { icon: BookOpen, label: "L'Archive" },
+                  { icon: Users, label: "Le Hub" },
+                  { icon: GraduationCap, label: "Tutorat" },
                 ].map((f, i) => (
                   <div
                     key={i}
-                    className="glass rounded-xl p-4 flex flex-col items-center gap-2"
+                    className="rounded-xl border border-border bg-card p-3.5 flex flex-col items-center gap-2"
                   >
-                    <f.icon className="w-6 h-6 text-primary" />
-                    <span className="text-xs font-medium text-muted-foreground">{f.label}</span>
+                    <f.icon className="w-5 h-5 text-primary" />
+                    <span className="text-xs font-medium text-foreground">{f.label}</span>
                   </div>
                 ))}
-              </motion.div>
+              </div>
 
               {/* CTA Buttons */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.7 }}
-                className="space-y-3"
-              >
+              <div className="space-y-2.5">
                 <Button
                   onClick={() => setView('signup')}
-                  className="w-full h-13 rounded-xl text-base font-semibold gradient-primary border-0 shadow-lg"
+                  className="w-full h-11 rounded-lg text-sm font-semibold"
                   size="lg"
                 >
-                  S'inscrire
+                  S'inscrire avec mon email .be
                 </Button>
                 <Button
                   onClick={() => setView('login')}
                   variant="outline"
-                  className="w-full h-13 rounded-xl text-base font-semibold border-2"
+                  className="w-full h-11 rounded-lg text-sm font-medium border-border"
                   size="lg"
                 >
                   Connexion
                 </Button>
-              </motion.div>
+              </div>
 
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.9 }}
-                className="mt-8 text-xs text-muted-foreground"
-              >
-                Réservé aux étudiants universitaires belges 🇧🇪
-              </motion.p>
+              <p className="mt-7 text-[0.7rem] font-mono text-muted-foreground">
+                ULB · UCLouvain · ULiège · UMons · UNamur · VUB · UGent
+              </p>
             </motion.div>
           )}
 

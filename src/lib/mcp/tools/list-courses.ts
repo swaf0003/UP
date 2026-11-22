@@ -3,10 +3,16 @@ import { defineTool, type ToolContext } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 
 export function supabaseForUser(ctx: ToolContext) {
-  return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
+  const key = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY!;
+  return createClient(process.env.SUPABASE_URL!, key, {
     global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+function sanitizePostgrestSearch(raw: string): string {
+  // Strip PostgREST filter syntax metacharacters to prevent .or() injection
+  return raw.replace(/[(),.%*\\]/g, " ").trim().slice(0, 100);
 }
 
 export function unauthenticated() {
@@ -29,8 +35,13 @@ export default defineTool({
       .from("courses")
       .select("id, name, short_name, code, faculty, year, semester, credits")
       .limit(limit ?? 25);
-    if (faculty) query = query.eq("faculty", faculty);
-    if (search) query = query.or(`name.ilike.%${search}%,code.ilike.%${search}%,short_name.ilike.%${search}%`);
+    if (faculty) query = query.eq("faculty", faculty.slice(0, 80));
+    if (search) {
+      const clean = sanitizePostgrestSearch(search);
+      if (clean) {
+        query = query.or(`name.ilike.%${clean}%,code.ilike.%${clean}%,short_name.ilike.%${clean}%`);
+      }
+    }
     const { data, error } = await query;
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     return {

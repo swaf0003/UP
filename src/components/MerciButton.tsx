@@ -1,105 +1,95 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Star } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuthContext } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
+import { useState } from "react";
+import { Star } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
-interface StarButtonProps {
+interface MerciButtonProps {
   messageId: string;
-  senderId: string;
-  source: 'private' | 'hub';
+  receiverId: string;
+  totalStars?: number;
+  isGiven?: boolean;
+  starsLeftToday?: number;
+  onStarGiven?: (messageId: string) => void;
   className?: string;
 }
 
-export default function MerciButton({ messageId, senderId, source, className }: StarButtonProps) {
+/**
+ * Zero-query-on-mount MerciButton — reads pre-batched star state from parent useBatchThanks().
+ */
+const MerciButton = ({
+  messageId,
+  receiverId,
+  totalStars = 0,
+  isGiven = false,
+  starsLeftToday = 3,
+  onStarGiven,
+  className,
+}: MerciButtonProps) => {
   const { user } = useAuthContext();
-  const [starred, setStarred] = useState(false);
-  const [count, setCount] = useState(0);
+  const [localGiven, setLocalGiven] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [starsLeftToday, setStarsLeftToday] = useState(3);
 
-  useEffect(() => {
-    if (!user) return;
-    const check = async () => {
-      const [{ data: mine }, { count: total }, { count: givenToday }] = await Promise.all([
-        supabase.from('thanks').select('id').eq('message_id', messageId).eq('sender_id', user.id).maybeSingle(),
-        supabase.from('thanks').select('*', { count: 'exact', head: true }).eq('message_id', messageId),
-        supabase.from('thanks').select('*', { count: 'exact', head: true })
-          .eq('sender_id', user.id)
-          .eq('given_date', new Date().toISOString().split('T')[0]),
-      ]);
-      setStarred(!!mine);
-      setCount(total || 0);
-      setStarsLeftToday(3 - (givenToday || 0));
-    };
-    check();
-  }, [user, messageId]);
+  if (!user || user.id === receiverId) return null;
 
-  const toggle = async () => {
-    if (!user || user.id === senderId || loading) return;
+  const given = isGiven || localGiven;
+  const displayTotal = totalStars + (localGiven && !isGiven ? 1 : 0);
+
+  const handleGiveStar = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (given || loading) return;
+
+    if (starsLeftToday <= 0) {
+      toast.info("Tu as déjà donné tes 3 étoiles aujourd'hui ! Reviens demain.");
+      return;
+    }
+
     setLoading(true);
+    const { error } = await supabase.from("thanks").insert({
+      sender_id: user.id,
+      receiver_id: receiverId,
+      message_id: messageId,
+    });
 
-    if (starred) {
-      await supabase.from('thanks').delete().eq('message_id', messageId).eq('sender_id', user.id);
-      setStarred(false);
-      setCount((c) => Math.max(c - 1, 0));
-      setStarsLeftToday((s) => Math.min(s + 1, 3));
-    } else {
-      if (starsLeftToday <= 0) {
-        toast.error('Tu as utilisé tes 3 étoiles du jour ! Reviens demain ⭐');
-        setLoading(false);
-        return;
-      }
-      const { error } = await supabase.from('thanks').insert({
-        message_id: messageId,
-        message_source: source,
-        sender_id: user.id,
-        receiver_id: senderId,
-        given_date: new Date().toISOString().split('T')[0],
-      });
-      if (!error) {
-        setStarred(true);
-        setCount((c) => c + 1);
-        setStarsLeftToday((s) => s - 1);
-        toast.success(`Étoile envoyée ! ⭐ (${starsLeftToday - 1} restante${starsLeftToday - 1 !== 1 ? 's' : ''} aujourd'hui)`);
-      } else if (error.code === '23505') {
-        toast.info('Déjà récompensé !');
+    if (error) {
+      if (error.code === "23505") {
+        setLocalGiven(true);
       } else {
-        toast.error("Impossible d'envoyer l'étoile");
+        toast.error(error.message || "Limite d'étoiles atteinte aujourd'hui !");
       }
+    } else {
+      setLocalGiven(true);
+      onStarGiven?.(messageId);
+      const remaining = Math.max(0, starsLeftToday - 1);
+      toast.success(
+        `Étoile donnée ! (${remaining} restante${remaining > 1 ? "s" : ""} aujourd'hui)`
+      );
     }
     setLoading(false);
   };
 
-  if (!user || user.id === senderId) return null;
-
   return (
-    <motion.button
-      whileTap={{ scale: 0.85 }}
-      onClick={toggle}
+    <button
+      onClick={handleGiveStar}
+      disabled={given || loading}
+      title={
+        given
+          ? "Étoile donnée"
+          : `Donner une étoile (${starsLeftToday}/3 restantes aujourd'hui)`
+      }
       className={cn(
-        'flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.65rem] font-medium transition-all',
-        starred
-          ? 'text-yellow-500 bg-yellow-500/10'
-          : 'text-muted-foreground hover:text-yellow-500 hover:bg-yellow-500/5',
+        "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[0.65rem] font-medium transition-colors",
+        given
+          ? "bg-warning/15 text-warning border border-warning/30"
+          : "bg-secondary/60 text-muted-foreground hover:text-warning hover:bg-warning/10 border border-transparent",
         className
       )}
     >
-      <AnimatePresence mode="wait">
-        {starred ? (
-          <motion.div key="starred" initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 400 }}>
-            <Star className="w-3.5 h-3.5 fill-yellow-500 text-yellow-500" />
-          </motion.div>
-        ) : (
-          <motion.div key="unstarred" whileHover={{ scale: 1.2, rotate: 15 }}>
-            <Star className="w-3.5 h-3.5" />
-          </motion.div>
-        )}
-      </AnimatePresence>
-      {count > 0 && <span>{count}</span>}
-      {!starred && count === 0 && <span>Étoile</span>}
-    </motion.button>
+      <Star className={cn("w-3 h-3", given && "fill-warning text-warning")} />
+      {displayTotal > 0 && <span className="font-mono">{displayTotal}</span>}
+    </button>
   );
-}
+};
+
+export default MerciButton;

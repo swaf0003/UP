@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Send, Search, X, MessageSquare, Smile } from "lucide-react";
@@ -13,6 +13,7 @@ import VoiceMessageBubble from "@/components/chat/VoiceMessageBubble";
 import DateSeparator from "@/components/chat/DateSeparator";
 import ReadReceipt from "@/components/chat/ReadReceipt";
 import MerciButton from "@/components/MerciButton";
+import { useBatchThanks } from "@/shared/hooks/useBatchThanks";
 import DeleteMessageDialog from "@/components/chat/DeleteMessageDialog";
 import { toast } from "sonner";
 
@@ -54,6 +55,8 @@ const MessagesPage = () => {
   const [deleting, setDeleting] = useState(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const dmMessageIds = useMemo(() => messages.map((m) => m.id), [messages]);
+  const batchThanks = useBatchThanks(user?.id, dmMessageIds);
 
   const handleLongPressStart = useCallback((msgId: string, isMine: boolean) => {
     if (!isMine) return;
@@ -146,21 +149,23 @@ const MessagesPage = () => {
         .single();
       setContactProfile(profile);
 
-      const { data } = await supabase
+      const { data: rawData } = await supabase
         .from("messages")
         .select("*")
         .or(
           `and(sender_id.eq.${user.id},receiver_id.eq.${contactId}),and(sender_id.eq.${contactId},receiver_id.eq.${user.id})`
         )
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false })
+        .limit(50);
 
-      setMessages((data as Message[]) || []);
+      const data = rawData ? [...rawData].reverse() : [];
+      setMessages(data as Message[]);
       setLoading(false);
 
-      if (data && data.length > 0) {
+      if (data.length > 0) {
         const unreadIds = data
-          .filter((m: any) => m.receiver_id === user.id && !m.read)
-          .map((m: any) => m.id);
+          .filter((m) => m.receiver_id === user.id && !m.read)
+          .map((m) => m.id);
         if (unreadIds.length > 0) {
           await supabase.from("messages").update({ read: true }).in("id", unreadIds);
         }
@@ -169,21 +174,42 @@ const MessagesPage = () => {
     fetchMessages();
 
     const channel = supabase
-      .channel(`messages-${contactId}`)
+      .channel(`messages-${user.id}-${contactId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
+        { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${user.id}` },
         (payload) => {
           const newMsg = payload.new as Message;
-          if (
-            (newMsg.sender_id === user.id && newMsg.receiver_id === contactId) ||
-            (newMsg.sender_id === contactId && newMsg.receiver_id === user.id)
-          ) {
-            setMessages((prev) => [...prev, newMsg]);
-            if (newMsg.receiver_id === user.id) {
-              supabase.from("messages").update({ read: true }).eq("id", newMsg.id).then(() => {});
-            }
+          if (newMsg.sender_id === contactId) {
+            setMessages((prev) => (prev.some((m) => m.id === newMsg.id) ? prev : [...prev, newMsg]));
+            supabase.from("messages").update({ read: true }).eq("id", newMsg.id).then(() => {});
           }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages", filter: `sender_id=eq.${user.id}` },
+        (payload) => {
+          const newMsg = payload.new as Message;
+          if (newMsg.receiver_id === contactId) {
+            setMessages((prev) => (prev.some((m) => m.id === newMsg.id) ? prev : [...prev, newMsg]));
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages", filter: `sender_id=eq.${user.id}` },
+        (payload) => {
+          const updated = payload.new as Message;
+          setMessages((prev) => prev.map((m) => (m.id === updated.id ? { ...m, read: updated.read } : m)));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "messages" },
+        (payload) => {
+          const oldId = (payload.old as { id?: string })?.id;
+          if (oldId) setMessages((prev) => prev.filter((m) => m.id !== oldId));
         }
       )
       .subscribe();
@@ -478,7 +504,14 @@ const MessagesPage = () => {
                   </div>
                   {!isMine && !consecutive && (
                     <div className="ml-1">
-                      <MerciButton messageId={msg.id} senderId={msg.sender_id} source="private" />
+                      <MerciButton
+                        messageId={msg.id}
+                        receiverId={msg.sender_id}
+                        totalStars={batchThanks.countsByMessage[msg.id] ?? 0}
+                        isGiven={batchThanks.givenByMe.has(msg.id)}
+                        starsLeftToday={batchThanks.starsLeftToday}
+                        onStarGiven={batchThanks.markStarGiven}
+                      />
                     </div>
                   )}
                 </div>
