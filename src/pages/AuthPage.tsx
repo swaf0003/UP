@@ -21,13 +21,12 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden bg-background">
-      {/* Subtle precision grid */}
+      {/* Subtle centered radial glow */}
       <div
-        className="absolute inset-0 pointer-events-none opacity-[0.04]"
+        className="absolute inset-0 pointer-events-none"
         style={{
-          backgroundImage:
-            "linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)",
-          backgroundSize: "48px 48px",
+          background:
+            "radial-gradient(600px circle at 50% 42%, hsl(var(--primary) / 0.09), transparent 70%)",
         }}
       />
 
