@@ -1,30 +1,29 @@
-// Source unique de vérité pour les libellés de navigation (FR)
 export const NAV_LABELS: Record<string, string> = {
   "/": "Accueil",
   "/resources": "L'Archive",
   "/chat": "Le Hub",
-  "/union": "Mon Union",
+  "/tutoring": "Tutorat",
   "/messages": "Messages",
-  "/explore": "Explorer",
+  "/union": "Mon Union",
   "/agenda": "Agenda",
+  "/explore": "Explorer",
   "/profile": "Profil",
   "/settings": "Paramètres",
-  "/admin": "Admin",
+  "/admin": "Administration",
 };
 
-// Versions courtes pour la barre de navigation mobile
 export const NAV_LABELS_SHORT: Record<string, string> = {
   "/": "Accueil",
   "/resources": "Archive",
   "/chat": "Hub",
+  "/tutoring": "Tutorat",
+  "/messages": "DMs",
   "/union": "Union",
-  "/messages": "Messages",
 };
 
-export const getPageLabel = (pathname: string): string | null => {
-  if (NAV_LABELS[pathname]) return NAV_LABELS[pathname];
-  const match = Object.keys(NAV_LABELS)
-    .filter((p) => p !== "/" && pathname.startsWith(p))
-    .sort((a, b) => b.length - a.length)[0];
-  return match ? NAV_LABELS[match] : null;
-};
+export function getPageLabel(pathname: string): string {
+  if (pathname.startsWith("/messages")) return NAV_LABELS["/messages"];
+  if (pathname.startsWith("/user/")) return "Profil étudiant";
+  if (pathname.startsWith("/tutoring")) return NAV_LABELS["/tutoring"];
+  return NAV_LABELS[pathname] || "Union Project";
+}

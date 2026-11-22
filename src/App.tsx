@@ -17,6 +17,7 @@ const ExplorePage = lazy(() => import("@/pages/ExplorePage"));
 const ChatPage = lazy(() => import("@/pages/ChatPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
 const ResourcesPage = lazy(() => import("@/pages/ResourcesPage"));
+const TutoringPage = lazy(() => import("@/pages/TutoringPage"));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
 const UnionPage = lazy(() => import("@/pages/UnionPage"));
 const MessagesPage = lazy(() => import("@/pages/MessagesPage"));
@@ -57,6 +58,7 @@ function AnimatedRoutes() {
           <Route path="/chat" element={<PageTransition><ChatPage /></PageTransition>} />
           <Route path="/profile" element={<PageTransition><ProfilePage /></PageTransition>} />
           <Route path="/resources" element={<PageTransition><ResourcesPage /></PageTransition>} />
+          <Route path="/tutoring" element={<PageTransition><TutoringPage /></PageTransition>} />
           <Route path="/union" element={<PageTransition><UnionPage /></PageTransition>} />
           <Route path="/messages" element={<PageTransition><MessagesPage /></PageTransition>} />
           <Route path="/messages/:contactId" element={<PageTransition><MessagesPage /></PageTransition>} />

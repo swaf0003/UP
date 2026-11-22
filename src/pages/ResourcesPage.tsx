@@ -15,6 +15,8 @@ import { AdminResourceDialog } from "@/components/AdminResourceDialog";
 import { CourseDashboard } from "@/features/archive/CourseDashboard";
 import { getSubjectMeta } from "@/features/archive/subjectMeta";
 import { useFavorites } from "@/features/archive/useFavorites";
+import { SubmitResourceDialog } from "@/features/archive/SubmitResourceDialog";
+import { ReportContentDialog } from "@/shared/components/ReportContentDialog";
 import { UNIVERSITIES, FACULTIES, ACADEMIC_YEARS } from "@/shared/constants/universities";
 
 const ResourcesPage = () => {
@@ -33,6 +35,8 @@ const ResourcesPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [onlyFavorites, setOnlyFavorites] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [submitOpen, setSubmitOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState<{ id: string; title: string } | null>(null);
 
   const { data: courses = [], isLoading } = useCourses(selectedUni, selectedFaculty, selectedYear);
 
@@ -78,11 +82,18 @@ const ResourcesPage = () => {
             Synthèses, vidéos et supports de cours des universités belges
           </p>
         </div>
-        {isAdmin && !activeCourse && (
-          <Button size="sm" onClick={() => setAdminOpen(true)} className="h-8 text-xs gap-1.5">
-            <Plus className="w-3.5 h-3.5" /> Nouveau cours
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {activeCourse?.dbId && (
+            <Button size="sm" variant="outline" onClick={() => setSubmitOpen(true)} className="h-8 text-xs gap-1.5">
+              <Plus className="w-3.5 h-3.5" /> Soumettre une synthèse
+            </Button>
+          )}
+          {isAdmin && !activeCourse && (
+            <Button size="sm" onClick={() => setAdminOpen(true)} className="h-8 text-xs gap-1.5">
+              <Plus className="w-3.5 h-3.5" /> Nouveau cours
+            </Button>
+          )}
+        </div>
       </div>
 
       <AnimatePresence mode="wait">
@@ -99,6 +110,7 @@ const ResourcesPage = () => {
             highlightResourceId={highlightId}
             favoriteIds={favoriteIds}
             onToggleFavorite={toggleFavorite}
+            onReportResource={(id, title) => setReportTarget({ id, title })}
           />
         ) : (
           <div key="catalog" className="space-y-4">
@@ -237,6 +249,23 @@ const ResourcesPage = () => {
           year={selectedYear}
         />
       )}
+
+      {activeCourse?.dbId && (
+        <SubmitResourceDialog
+          open={submitOpen}
+          onOpenChange={setSubmitOpen}
+          courseId={activeCourse.dbId}
+          courseName={activeCourse.name}
+        />
+      )}
+
+      <ReportContentDialog
+        open={Boolean(reportTarget)}
+        onOpenChange={(o) => !o && setReportTarget(null)}
+        targetType="resource"
+        targetId={reportTarget?.id || ""}
+        targetLabel={reportTarget?.title}
+      />
     </div>
   );
 };

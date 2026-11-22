@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Users, Hash, Stethoscope, Wrench, ArrowLeft, UserPlus, Heart, Loader2, Plus, LogIn, Crown, ChevronDown, GraduationCap, Building2, Star, Link2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -14,6 +15,7 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import { useAdmin } from "@/hooks/useAdmin";
 import { toast } from "sonner";
 import VoiceMessageBubble from "@/components/chat/VoiceMessageBubble";
+import VoiceRecorder from "@/components/VoiceRecorder";
 import { useChatTheme } from "@/contexts/ChatThemeContext";
 import DateSeparator from "@/components/chat/DateSeparator";
 import MerciButton from "@/components/MerciButton";
@@ -68,6 +70,8 @@ const ChatPage = () => {
   const { user, profile } = useAuthContext();
   const { isAdmin, isOwner } = useAdmin();
   const { accent } = useChatTheme();
+  const [searchParams] = useSearchParams();
+  const hubParam = searchParams.get("hub");
   const [selectedCourse, setSelectedCourse] = useState<CourseHub | null>(null);
   const [message, setMessage] = useState("");
   const [filter, setFilter] = useState<"all" | "medecine" | "polytech">("all");
@@ -154,6 +158,16 @@ const ChatPage = () => {
   };
 
   useEffect(() => { fetchHubs(); }, [user]);
+
+  // Honor ?hub=<courseId> deep link from CommandPalette / Archive / Home
+  useEffect(() => {
+    if (!hubParam || hubs.length === 0 || selectedCourse) return;
+    const target = hubs.find((h) => h.id === hubParam);
+    if (target) {
+      if (target.isMember) setSelectedCourse(target);
+      else setJoinDialogHub(target);
+    }
+  }, [hubParam, hubs, selectedCourse]);
 
   const profileCacheRef = useRef<Map<string, { display_name?: string; university?: string; faculty?: string; avatar_url?: string | null }>>(new Map());
   const hubMessageIds = useMemo(() => hubMessages.map((m) => m.id), [hubMessages]);
@@ -802,7 +816,8 @@ const ChatPage = () => {
           >
             <Link2 className="w-5 h-5" />
           </Button>
-          <div className="flex-1 flex items-center gap-1.5 bg-card border border-border/60 rounded-2xl px-3 py-1.5">
+          <div className="flex-1 flex items-center gap-1.5 bg-card border border-border rounded-xl px-3 py-1.5">
+            <VoiceRecorder compact onSend={handleVoiceSend} />
             <Input
               value={message}
               onChange={(e) => setMessage(e.target.value)}
