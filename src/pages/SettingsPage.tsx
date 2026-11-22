@@ -1,7 +1,19 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, Save, Loader2, User, GraduationCap, Lock, Moon, Sun, Palette, Check, CalendarDays, RefreshCw, Link as LinkIcon } from "lucide-react";
+import { ArrowLeft, Save, Loader2, User, GraduationCap, Lock, Moon, Sun, Palette, Check, CalendarDays, RefreshCw, Trash2, AlertTriangle } from "lucide-react";
+import { isSafeHttpUrl } from "@/lib/urlValidation";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -38,7 +50,7 @@ const profileSchema = z.object({
 
 const SettingsPage = () => {
   const navigate = useNavigate();
-  const { profile, updateProfile, user } = useAuthContext();
+  const { profile, updateProfile, user, signOut } = useAuthContext();
   const { theme, setTheme } = useTheme();
   const { accent, setAccentId } = useChatTheme();
   const [saving, setSaving] = useState(false);
@@ -47,6 +59,7 @@ const SettingsPage = () => {
   const [changingPassword, setChangingPassword] = useState(false);
   const [icsLink, setIcsLink] = useState("");
   const [syncingICS, setSyncingICS] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const [form, setForm] = useState({
     display_name: "",
@@ -89,16 +102,35 @@ const SettingsPage = () => {
   };
 
   const handleChangePassword = async () => {
-    if (!passwordForm.new || passwordForm.new.length < 6) {
-      toast.error("Le mot de passe doit faire au moins 6 caractères");
+    if (!passwordForm.current) {
+      toast.error("Entre ton mot de passe actuel pour confirmer");
+      return;
+    }
+    if (!passwordForm.new || passwordForm.new.length < 10) {
+      toast.error("Le nouveau mot de passe doit faire au moins 10 caractères");
       return;
     }
     if (passwordForm.new !== passwordForm.confirm) {
       toast.error("Les mots de passe ne correspondent pas");
       return;
     }
+    if (!user?.email) {
+      toast.error("Session utilisateur introuvable");
+      return;
+    }
 
     setChangingPassword(true);
+    // Re-authenticate with current password before permitting password change
+    const { error: reauthError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: passwordForm.current,
+    });
+    if (reauthError) {
+      toast.error("Mot de passe actuel incorrect");
+      setChangingPassword(false);
+      return;
+    }
+
     const { error } = await supabase.auth.updateUser({ password: passwordForm.new });
     if (error) {
       toast.error(error.message || "Erreur lors du changement de mot de passe");
@@ -107,6 +139,19 @@ const SettingsPage = () => {
       setPasswordForm({ current: "", new: "", confirm: "" });
     }
     setChangingPassword(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeletingAccount(true);
+    const { error } = await supabase.functions.invoke("delete-account");
+    if (error) {
+      toast.error("Impossible de supprimer le compte pour le moment.");
+      setDeletingAccount(false);
+      return;
+    }
+    toast.success("Ton compte et toutes tes données ont été supprimés.");
+    await signOut();
+    navigate("/");
   };
 
   return (
@@ -196,8 +241,12 @@ const SettingsPage = () => {
         <Button
           onClick={async () => {
             if (!icsLink) return;
+            if (!isSafeHttpUrl(icsLink, true)) {
+              toast.error("Le lien ICS doit commencer par https://");
+              return;
+            }
             setSyncingICS(true);
-            const { data, error } = await supabase.functions.invoke("sync-ics", { body: { ics_url: icsLink } });
+            const { data, error } = await supabase.functions.invoke("sync-ics", { body: { ics_url: icsLink.trim() } });
             if (error) {
               toast.error("Erreur de synchronisation ICS");
             } else {
@@ -221,12 +270,16 @@ const SettingsPage = () => {
           Changer le mot de passe
         </div>
         <div className="space-y-2">
-          <Label>Nouveau mot de passe</Label>
-          <Input type="password" value={passwordForm.new} onChange={e => setPasswordForm(p => ({ ...p, new: e.target.value }))} placeholder="••••••••" className="rounded-xl glass border-border" />
+          <Label>Mot de passe actuel</Label>
+          <Input type="password" value={passwordForm.current} onChange={e => setPasswordForm(p => ({ ...p, current: e.target.value }))} placeholder="••••••••••" className="rounded-xl glass border-border" />
+        </div>
+        <div className="space-y-2">
+          <Label>Nouveau mot de passe (min. 10 caractères)</Label>
+          <Input type="password" value={passwordForm.new} onChange={e => setPasswordForm(p => ({ ...p, new: e.target.value }))} placeholder="••••••••••" className="rounded-xl glass border-border" />
         </div>
         <div className="space-y-2">
           <Label>Confirmer</Label>
-          <Input type="password" value={passwordForm.confirm} onChange={e => setPasswordForm(p => ({ ...p, confirm: e.target.value }))} placeholder="••••••••" className="rounded-xl glass border-border" />
+          <Input type="password" value={passwordForm.confirm} onChange={e => setPasswordForm(p => ({ ...p, confirm: e.target.value }))} placeholder="••••••••••" className="rounded-xl glass border-border" />
         </div>
         <Button onClick={handleChangePassword} disabled={changingPassword} variant="outline" className="w-full rounded-xl h-10 text-sm">
           {changingPassword ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
@@ -306,6 +359,39 @@ const SettingsPage = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* GDPR Account Deletion */}
+      <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-5 space-y-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+          <AlertTriangle className="w-4 h-4" />
+          Zone de danger (RGPD)
+        </div>
+        <p className="text-xs text-muted-foreground">
+          La suppression de ton compte efface définitivement ton profil, tes messages, tes événements d'agenda et tes fichiers audio/avatar. Cette action est irréversible.
+        </p>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" className="w-full rounded-xl h-10 text-sm" disabled={deletingAccount}>
+              {deletingAccount ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Supprimer définitivement mon compte
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Supprimer ton compte Union Project ?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Toutes tes données personnelles, messages, notes vocales et contacts seront effacés définitivement conformément au RGPD.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteAccount} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Oui, supprimer mon compte
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </motion.div>
   );

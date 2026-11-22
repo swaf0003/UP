@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { sanitizeExternalUrl, getSignedStorageUrl } from "@/lib/urlValidation";
 import { universities, curricula, type Course } from "@/data/mockData";
 import { useCourses } from "@/hooks/useCourses";
 import { useAdmin } from "@/hooks/useAdmin";
@@ -199,7 +200,19 @@ const CourseDashboard = ({ course, faculty, onBack, isAdmin }: { course: Course;
             <div className="text-center py-8 text-muted-foreground text-sm">Aucun document disponible</div>
           ) : pdfs.map((d, i) => (
             <div key={i} className="glass rounded-xl p-4 flex items-center gap-3 hover:scale-[1.01] transition-all">
-              <a href={d.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 flex-1 min-w-0">
+              <a
+                href={sanitizeExternalUrl(d.url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={async (e) => {
+                  if (d.url?.includes("/storage/v1/object/public/resources/")) {
+                    e.preventDefault();
+                    const signed = await getSignedStorageUrl("resources", d.url);
+                    if (signed) window.open(signed, "_blank", "noopener,noreferrer");
+                  }
+                }}
+                className="flex items-center gap-3 flex-1 min-w-0"
+              >
                 <div className="flex items-center justify-center w-10 h-10 rounded-xl gradient-accent shrink-0">
                   <FileText className="w-4 h-4 text-accent-foreground" />
                 </div>

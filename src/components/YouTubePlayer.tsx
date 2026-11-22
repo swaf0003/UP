@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Play, X, Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { sanitizeExternalUrl } from "@/lib/urlValidation";
 
 interface YouTubePlayerProps {
   url: string;
@@ -26,8 +27,9 @@ const YouTubePlayer = ({ url, title }: YouTubePlayerProps) => {
   const videoId = extractYouTubeId(url);
 
   if (!videoId) {
+    const safeUrl = sanitizeExternalUrl(url);
     return (
-      <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline">
+      <a href={safeUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline">
         Ouvrir la vidéo ↗
       </a>
     );

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Video, FileText, ClipboardList, Loader2, Upload, File, X, Link2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { isSafeHttpUrl } from "@/lib/urlValidation";
 
 interface Props {
   open: boolean;
@@ -119,6 +120,10 @@ export const AdminResourceDialog = ({ open, onOpenChange, universityId, faculty,
     // Video always uses URL mode
     const effectiveInputMode = resourceType === "video" ? "url" : inputMode;
     if (effectiveInputMode === "url" && !url.trim()) return;
+    if (effectiveInputMode === "url" && !isSafeHttpUrl(url.trim())) {
+      toast({ title: "URL invalide", description: "L'URL doit commencer par https:// ou http://", variant: "destructive" });
+      return;
+    }
     if (effectiveInputMode === "file" && !selectedFile) return;
 
     setLoading(true);
@@ -127,8 +132,9 @@ export const AdminResourceDialog = ({ open, onOpenChange, universityId, faculty,
 
     // Upload file if in file mode
     if (effectiveInputMode === "file" && selectedFile) {
-      const ext = selectedFile.name.split(".").pop();
-      const path = `${courseId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const rawExt = selectedFile.name.includes(".") ? selectedFile.name.split(".").pop()?.toLowerCase() : "bin";
+      const safeExt = (rawExt || "bin").replace(/[^a-z0-9]/g, "").slice(0, 8) || "bin";
+      const path = `${courseId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${safeExt}`;
       
       setUploadProgress(10);
       const { error: uploadError } = await supabase.storage

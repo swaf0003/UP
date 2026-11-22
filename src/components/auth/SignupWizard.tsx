@@ -66,7 +66,6 @@ export default function SignupWizard({ onBack, onOtpSent }: SignupWizardProps) {
       if (step === 3) emailRef.current?.focus();
     }, 300);
     return () => clearTimeout(timer);
-    return () => clearTimeout(timer);
   }, [step]);
 
   const next = () => { setDir(1); setStep((s) => Math.min(s + 1, STEP_COUNT - 1)); };
@@ -76,7 +75,7 @@ export default function SignupWizard({ onBack, onOtpSent }: SignupWizardProps) {
     if (step === 0) return name.trim().length >= 2 && gender !== '';
     if (step === 1) return dobDay !== '' && dobMonth !== '' && dobYear !== '';
     if (step === 2) return university !== '' && faculty !== '' && year !== '';
-    if (step === 3) return email !== '' && password.length >= 6;
+    if (step === 3) return email !== '' && password.length >= 10;
     return false;
   };
 
@@ -111,24 +110,14 @@ export default function SignupWizard({ onBack, onOtpSent }: SignupWizardProps) {
     if (error) {
       toast({
         title: 'Erreur',
-        description: error.message,
+        description: "Impossible de créer le compte. Vérifie tes informations et réessaie.",
         variant: 'destructive',
       });
       setLoading(false);
       return;
     }
 
-    if (data.user && !data.user.identities?.length) {
-      toast({
-        title: 'Compte existant',
-        description: 'Un compte existe déjà avec cet email. Essaie de te connecter.',
-        variant: 'destructive',
-      });
-      setLoading(false);
-      return;
-    }
-
-    // Supabase sends confirmation email automatically (auto-confirm is OFF)
+    // Avoid account enumeration: always proceed to verification step generically
     onOtpSent(email);
     setLoading(false);
   };
@@ -360,7 +349,7 @@ export default function SignupWizard({ onBack, onOtpSent }: SignupWizardProps) {
                 <div className="relative">
                   <Input
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Minimum 6 caractères"
+                    placeholder="Minimum 10 caractères"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="h-12 rounded-xl bg-muted/50 pr-12"

@@ -9,6 +9,7 @@ import { useAdmin } from '@/hooks/useAdmin';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { validateAvatarFile } from '@/lib/urlValidation';
 import { fetchUnionScore, fetchLeaderboard, getRank, RANKS, type LeaderboardEntry } from '@/hooks/useUnionScore';
 
 const universityNames: Record<string, string> = {
@@ -80,21 +81,20 @@ const ProfilePage = () => {
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-    if (!file.type.startsWith('image/')) {
-      toast({ title: 'Format invalide', description: 'Choisis une image (JPG, PNG...)', variant: 'destructive' });
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: 'Fichier trop lourd', description: 'Maximum 5 Mo', variant: 'destructive' });
+    const validation = validateAvatarFile(file);
+    if (!validation.valid) {
+      toast({ title: 'Fichier invalide', description: validation.error, variant: 'destructive' });
       return;
     }
     setUploading(true);
-    const ext = file.name.split('.').pop();
-    const filePath = `${user.id}/avatar.${ext}`;
+    const filePath = `${user.id}/avatar.${validation.ext}`;
     if (profile?.avatar_url) {
       await supabase.storage.from('avatars').remove([profile.avatar_url]);
     }
-    const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, { upsert: true });
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, {
+      upsert: true,
+      contentType: file.type,
+    });
     if (uploadError) {
       toast({ title: 'Erreur', description: "Impossible d'uploader la photo.", variant: 'destructive' });
       setUploading(false);
@@ -108,7 +108,7 @@ const ProfilePage = () => {
 
   return (
     <motion.div className="space-y-6" variants={stagger} initial="initial" animate="animate">
-      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+      <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleAvatarUpload} />
 
       {/* Profile Card */}
       <motion.div variants={fadeUp} className="glass rounded-3xl p-6 text-center relative overflow-hidden">

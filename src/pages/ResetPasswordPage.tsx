@@ -18,25 +18,37 @@ export default function ResetPasswordPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const queryParams = new URLSearchParams(window.location.search);
+    const hasRecoveryToken =
+      hashParams.get('type') === 'recovery' ||
+      queryParams.get('type') === 'recovery' ||
+      Boolean(queryParams.get('code'));
+
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
+      if (event === 'PASSWORD_RECOVERY') {
         setValid(true);
         setReady(true);
       }
     });
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) setValid(true);
+    const timer = setTimeout(() => {
+      if (!hasRecoveryToken) {
+        setValid(false);
+      }
       setReady(true);
-    });
+    }, 800);
 
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      clearTimeout(timer);
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < 6) {
-      toast.error('Le mot de passe doit faire au moins 6 caractères');
+    if (password.length < 10) {
+      toast.error('Le mot de passe doit faire au moins 10 caractères');
       return;
     }
     if (password !== confirm) {

@@ -77,17 +77,14 @@ export default function OTPVerification({ email, onVerified, onBack }: OTPVerifi
       return;
     }
 
-    // Code verified — update profile
+    // Code verified — email_verified is synced server-side via auth.users trigger
     if (data.user) {
       const meta = data.user.user_metadata;
       await supabase.from('profiles').update({
         display_name: meta?.display_name || '',
-        gender: meta?.gender || '',
-        date_of_birth: meta?.date_of_birth || null,
         university: meta?.university || '',
         faculty: meta?.faculty || '',
         academic_year: meta?.academic_year || '',
-        email_verified: true,
       }).eq('user_id', data.user.id);
     }
 
