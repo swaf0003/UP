@@ -31,11 +31,17 @@ const VoiceMessageBubble = ({ voiceUrl, duration, isMine }: VoiceMessageBubblePr
     };
   }, []);
 
-  const updateProgress = () => {
+  const lastTickRef = useRef<number>(0);
+
+  const updateProgress = (now: number) => {
     if (audioRef.current) {
-      const p = audioRef.current.currentTime / (audioRef.current.duration || duration || 1);
-      setProgress(p);
-      setCurrentTime(audioRef.current.currentTime);
+      // Throttle React state updates to ~10Hz instead of 60fps
+      if (now - lastTickRef.current >= 100) {
+        lastTickRef.current = now;
+        const p = audioRef.current.currentTime / (audioRef.current.duration || duration || 1);
+        setProgress(p);
+        setCurrentTime(audioRef.current.currentTime);
+      }
       if (!audioRef.current.paused) {
         animRef.current = requestAnimationFrame(updateProgress);
       }

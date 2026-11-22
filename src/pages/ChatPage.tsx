@@ -53,6 +53,7 @@ interface HubMessage {
 import { JoinHubDialog } from "@/features/hubs/JoinHubDialog";
 import { CreateSalonDialog } from "@/features/hubs/CreateSalonDialog";
 import { UNIVERSITY_NAMES as universityNames } from "@/shared/constants/universities";
+import { useBatchThanks } from "@/shared/hooks/useBatchThanks";
 
 const universities = [
   { id: "ulb", name: "ULB" }, { id: "uclouvain", name: "UCLouvain" }, { id: "uliege", name: "ULiège" },
@@ -154,28 +155,40 @@ const ChatPage = () => {
 
   useEffect(() => { fetchHubs(); }, [user]);
 
-  // Fetch messages for selected course + realtime
+  const profileCacheRef = useRef<Map<string, { display_name?: string; university?: string; faculty?: string; avatar_url?: string | null }>>(new Map());
+  const hubMessageIds = useMemo(() => hubMessages.map((m) => m.id), [hubMessages]);
+  const batchThanks = useBatchThanks(user?.id, hubMessageIds);
+
+  // Fetch messages for selected course + realtime (paginated 50 + profile cache + DELETE handler)
   useEffect(() => {
-    if (!selectedCourse) return;
+    const courseId = selectedCourse?.id;
+    if (!courseId) return;
 
     const fetchMessages = async () => {
-      const { data: messages } = await supabase
+      const { data: rawMessages } = await supabase
         .from("hub_messages")
         .select("*")
-        .eq("course_id", selectedCourse.id)
-        .order("created_at", { ascending: true });
+        .eq("course_id", courseId)
+        .order("created_at", { ascending: false })
+        .limit(50);
 
-      if (!messages) return;
+      if (!rawMessages) return;
+      const messages = [...rawMessages].reverse();
 
       const senderIds = [...new Set(messages.map((m) => m.sender_id))];
-      const { data: profiles } = senderIds.length > 0
-        ? await supabase.from("profiles").select("user_id, display_name, university, faculty, avatar_url").in("user_id", senderIds)
-        : { data: [] };
-
-      const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p] as [string, any]));
+      const missingIds = senderIds.filter((id) => !profileCacheRef.current.has(id));
+      if (missingIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, display_name, university, faculty, avatar_url")
+          .in("user_id", missingIds);
+        for (const p of profiles || []) {
+          profileCacheRef.current.set(p.user_id, p);
+        }
+      }
 
       setHubMessages(messages.map((m) => {
-        const p = profileMap.get(m.sender_id) as any;
+        const p = profileCacheRef.current.get(m.sender_id);
         return {
           id: m.id, content: m.content, message_type: m.message_type,
           voice_url: m.voice_url, voice_duration: m.voice_duration,
@@ -191,32 +204,55 @@ const ChatPage = () => {
     fetchMessages();
 
     const channel = supabase
-      .channel(`hub-${selectedCourse.id}`)
+      .channel(`hub-${courseId}`)
       .on("postgres_changes", {
         event: "INSERT", schema: "public", table: "hub_messages",
-        filter: `course_id=eq.${selectedCourse.id}`,
+        filter: `course_id=eq.${courseId}`,
       }, async (payload) => {
-        const msg = payload.new as any;
-        const { data: p } = await supabase
-          .from("profiles")
-          .select("user_id, display_name, university, faculty, avatar_url")
-          .eq("user_id", msg.sender_id)
-          .single();
+        const msg = payload.new as {
+          id: string; content: string; message_type: string;
+          voice_url: string | null; voice_duration: number | null;
+          created_at: string; sender_id: string;
+        };
+        let p = profileCacheRef.current.get(msg.sender_id);
+        if (!p) {
+          const { data } = await supabase
+            .from("profiles")
+            .select("user_id, display_name, university, faculty, avatar_url")
+            .eq("user_id", msg.sender_id)
+            .single();
+          if (data) {
+            profileCacheRef.current.set(msg.sender_id, data);
+            p = data;
+          }
+        }
 
-        setHubMessages((prev) => [...prev, {
-          id: msg.id, content: msg.content, message_type: msg.message_type,
-          voice_url: msg.voice_url, voice_duration: msg.voice_duration,
-          created_at: msg.created_at, sender_id: msg.sender_id,
-          sender_name: p?.display_name || "Anonyme",
-          sender_university: p?.university || "",
-          sender_faculty: p?.faculty || "",
-          sender_avatar: p?.avatar_url || null,
-        }]);
+        setHubMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, {
+            id: msg.id, content: msg.content, message_type: msg.message_type,
+            voice_url: msg.voice_url, voice_duration: msg.voice_duration,
+            created_at: msg.created_at, sender_id: msg.sender_id,
+            sender_name: p?.display_name || "Anonyme",
+            sender_university: p?.university || "",
+            sender_faculty: p?.faculty || "",
+            sender_avatar: p?.avatar_url || null,
+          }];
+        });
+      })
+      .on("postgres_changes", {
+        event: "DELETE", schema: "public", table: "hub_messages",
+        filter: `course_id=eq.${courseId}`,
+      }, (payload) => {
+        const oldId = (payload.old as { id?: string })?.id;
+        if (oldId) {
+          setHubMessages((prev) => prev.filter((m) => m.id !== oldId));
+        }
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [selectedCourse]);
+  }, [selectedCourse?.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -727,7 +763,14 @@ const ChatPage = () => {
                         {formatTime(msg.created_at)}
                       </p>
                       {!isMine && !consecutive && (
-                        <MerciButton messageId={msg.id} senderId={msg.sender_id} source="hub" />
+                        <MerciButton
+                          messageId={msg.id}
+                          receiverId={msg.sender_id}
+                          totalStars={batchThanks.countsByMessage[msg.id] ?? 0}
+                          isGiven={batchThanks.givenByMe.has(msg.id)}
+                          starsLeftToday={batchThanks.starsLeftToday}
+                          onStarGiven={batchThanks.markStarGiven}
+                        />
                       )}
                     </div>
                   </div>

@@ -23,19 +23,50 @@ const VoiceRecorder = ({ onSend, compact = false }: VoiceRecorderProps) => {
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number>();
+  const recordedUrlRef = useRef<string | null>(null);
 
-  // Waveform animation during recording
+  const MAX_RECORDING_SECONDS = 120;
+
+  useEffect(() => {
+    recordedUrlRef.current = recordedUrl;
+  }, [recordedUrl]);
+
+  // Clean up AudioContext, MediaStream, MediaRecorder, and Object URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (mediaRecorderRef.current?.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      audioCtxRef.current?.close().catch(() => {});
+      if (recordedUrlRef.current) URL.revokeObjectURL(recordedUrlRef.current);
+    };
+  }, []);
+
+  // Waveform animation during recording (throttled & auto-stopped at 120s)
   useEffect(() => {
     if (isRecording) {
       const iv = setInterval(() => {
-        setDuration((d) => d + 0.1);
+        setDuration((d) => {
+          const next = d + 0.1;
+          if (next >= MAX_RECORDING_SECONDS) {
+            stopRecording();
+            return MAX_RECORDING_SECONDS;
+          }
+          return next;
+        });
       }, 100);
       intervalRef.current = iv;
 
-      const updateWaveform = () => {
-        if (analyserRef.current) {
+      let lastFrame = 0;
+      const updateWaveform = (now: number) => {
+        if (now - lastFrame >= 80 && analyserRef.current) {
+          lastFrame = now;
           const data = new Uint8Array(analyserRef.current.frequencyBinCount);
           analyserRef.current.getByteFrequencyData(data);
           const bars = Array(24).fill(0).map((_, i) => {
@@ -46,7 +77,7 @@ const VoiceRecorder = ({ onSend, compact = false }: VoiceRecorderProps) => {
         }
         animFrameRef.current = requestAnimationFrame(updateWaveform);
       };
-      updateWaveform();
+      animFrameRef.current = requestAnimationFrame(updateWaveform);
 
       return () => {
         clearInterval(iv);
@@ -60,8 +91,10 @@ const VoiceRecorder = ({ onSend, compact = false }: VoiceRecorderProps) => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // Set up analyser for waveform
+      // Set up analyser for waveform & track AudioContext for cleanup
+      audioCtxRef.current?.close().catch(() => {});
       const audioCtx = new AudioContext();
+      audioCtxRef.current = audioCtx;
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
@@ -83,9 +116,14 @@ const VoiceRecorder = ({ onSend, compact = false }: VoiceRecorderProps) => {
       mediaRecorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         setRecordedBlob(blob);
-        setRecordedUrl(URL.createObjectURL(blob));
+        setRecordedUrl((prev) => {
+          if (prev) URL.revokeObjectURL(prev);
+          return URL.createObjectURL(blob);
+        });
         setWaveformBars(Array(24).fill(0).map(() => 0.15 + Math.random() * 0.7));
         stream.getTracks().forEach((t) => t.stop());
+        audioCtxRef.current?.close().catch(() => {});
+        audioCtxRef.current = null;
       };
 
       mediaRecorder.start();

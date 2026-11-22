@@ -1,10 +1,8 @@
-import { useState, useEffect } from "react";
 import { Home, BookOpen, MessageCircle, Users, Mail } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuthContext } from "@/contexts/AuthContext";
+import { useUnreadMessages } from "@/shared/hooks/useUnreadMessages";
 import { NAV_LABELS_SHORT } from "@/lib/navLabels";
 
 const leftItems = [
@@ -22,34 +20,7 @@ const centerItem = { icon: Mail, label: NAV_LABELS_SHORT["/messages"], path: "/m
 const BottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuthContext();
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const fetchUnread = async () => {
-      const { count } = await supabase
-        .from("messages")
-        .select("*", { count: "exact", head: true })
-        .eq("receiver_id", user.id)
-        .eq("read", false);
-      setUnreadCount(count || 0);
-    };
-
-    fetchUnread();
-
-    const channel = supabase
-      .channel("unread-badge")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "messages", filter: `receiver_id=eq.${user.id}` },
-        () => fetchUnread()
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [user]);
+  const unreadCount = useUnreadMessages();
 
   const renderItem = (item: { icon: any; label: string; path: string }) => {
     const Icon = item.icon;
